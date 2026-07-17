@@ -35,15 +35,33 @@ html.lenis, html.lenis body {
 
 /* Papier du livre */
 .paper {
-  background-color: #EDE2D0;
+  background-color: #FAF5EB;
   background-image:
-    radial-gradient(ellipse at 20% 10%, rgba(255,255,255,0.5), transparent 60%),
-    url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23p)' opacity='0.06'/%3E%3C/svg%3E");
+    radial-gradient(ellipse at 20% 10%, rgba(255,255,255,0.7), transparent 60%),
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23p)' opacity='0.04'/%3E%3C/svg%3E");
 }
 
 @media (pointer: fine) {
   .has-cursor, .has-cursor a, .has-cursor button, .has-cursor input,
   .has-cursor textarea, .has-cursor select, .has-cursor label {
     cursor: none;
+  }
+}
+
+/* Navigation clavier : anneau de focus visible même avec le curseur custom */
+a:focus-visible, button:focus-visible, input:focus-visible,
+textarea:focus-visible, select:focus-visible {
+  outline: 2px solid #B86443;
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+
+/* Respect du réglage système "réduire les animations" */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

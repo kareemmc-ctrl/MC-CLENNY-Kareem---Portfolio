@@ -10,6 +10,8 @@ export default function ScrubVideo({ src, progress, className = '' }: {
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const current = useRef(0);
+  const isSeeking = useRef(false);
+  const lastSeekTime = useRef(0);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -33,9 +35,21 @@ export default function ScrubVideo({ src, progress, className = '' }: {
         }
       });
 
+    const handleSeeking = () => {
+      isSeeking.current = true;
+    };
+    const handleSeeked = () => {
+      isSeeking.current = false;
+    };
+
+    video.addEventListener('seeking', handleSeeking);
+    video.addEventListener('seeked', handleSeeked);
+
     return () => {
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
+      video.removeEventListener('seeking', handleSeeking);
+      video.removeEventListener('seeked', handleSeeked);
     };
   }, [src]);
 
@@ -43,10 +57,18 @@ export default function ScrubVideo({ src, progress, className = '' }: {
     const video = videoRef.current;
     if (!video || !video.duration || video.readyState < 1) return;
     const target = progress.get() * (video.duration - 0.06);
+    
     // interpolation douce vers la position cible
-    current.current += (target - current.current) * 0.12;
-    if (Math.abs(video.currentTime - current.current) > 0.01) {
-      video.currentTime = current.current;
+    current.current += (target - current.current) * 0.1;
+    
+    const now = performance.now();
+    // Évite de surcharger le décodeur : max 1 seek toutes les 33ms et pas pendant un seeking actif
+    if (!isSeeking.current && now - lastSeekTime.current > 33) {
+      if (Math.abs(video.currentTime - current.current) > 0.01) {
+        isSeeking.current = true;
+        video.currentTime = current.current;
+        lastSeekTime.current = now;
+      }
     }
   });
 

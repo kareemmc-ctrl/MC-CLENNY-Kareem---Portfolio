@@ -1,11 +1,9 @@
-import { motion, useScroll, useTransform, AnimatePresence, type MotionValue } from 'motion/react';
+import { motion, useScroll, useTransform, useSpring, AnimatePresence, MotionConfig, type MotionValue } from 'motion/react';
 import { useState, useRef, useEffect, type FormEvent } from 'react';
-import { ArrowUpRight, ChevronDown, Plus, Minus, FileText, Shield } from 'lucide-react';
+import { ArrowUpRight, ArrowUp, ChevronDown, Plus, Minus, FileText, Shield, Copy, Check, MapPin } from 'lucide-react';
 import Lenis from 'lenis';
-import Chatbot from './components/Chatbot';
 import Cursor from './components/Cursor';
 import Preloader from './components/Preloader';
-import ScrubVideo from './components/ScrubVideo';
 import BookSection from './components/BookSection';
 import VelocityMarquee from './components/VelocityMarquee';
 import { LineReveal, WordScrollReveal } from './components/Reveal';
@@ -13,13 +11,13 @@ import { LineReveal, WordScrollReveal } from './components/Reveal';
 const EASE = [0.32, 0.72, 0, 1] as const;
 const HERO_VIDEO = 'https://d8j0ntlcm91z4.cloudfront.net/user_3GG7Y16i1wZd6gC9IXwtKc5HQug/hf_20260717_115329_696a8707-668a-4222-8eb3-1e7f2fd27998.mp4';
 
-const FaqItem = ({ question, answer }: { question: string, answer: string }) => {
-  const [isOpen, setIsOpen] = useState(false);
-
+// Accordéon contrôlé : un seul item ouvert à la fois (géré par le parent)
+const FaqItem = ({ question, answer, isOpen, onToggle }: { question: string, answer: string, isOpen: boolean, onToggle: () => void }) => {
   return (
     <div className="border-b border-[#F0E2D3]/10 py-8">
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={onToggle}
+        aria-expanded={isOpen}
         className="w-full flex justify-between items-center text-left focus:outline-none group"
       >
         <span className="font-display text-xl md:text-2xl font-medium group-hover:text-[#B86443] transition-colors duration-500">{question}</span>
@@ -89,12 +87,20 @@ const StackCard = ({ i, total, progress, num, title, desc, points, bg, fg, accen
   );
 };
 
+const prefersReducedMotion = typeof window !== 'undefined'
+  && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 export default function App() {
   const lenisRef = useRef<Lenis | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState('top');
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+  const [parisTime, setParisTime] = useState('');
 
-  // Smooth scroll inertiel (Lenis)
+  // Smooth scroll inertiel (Lenis) — désactivé si l'utilisateur réduit les animations
   useEffect(() => {
+    if (prefersReducedMotion) return;
     const lenis = new Lenis({ lerp: 0.09 });
     lenisRef.current = lenis;
     let raf = requestAnimationFrame(function loop(time) {
@@ -107,9 +113,51 @@ export default function App() {
     };
   }, []);
 
+  // Surligne le lien de nav correspondant à la section visible
+  useEffect(() => {
+    const ids = ['top', 'manifeste', 'expertise', 'work', 'journal', 'contact'];
+    const observer = new IntersectionObserver(
+      entries => {
+        for (const e of entries) {
+          if (e.isIntersecting) setActiveSection(e.target.id);
+        }
+      },
+      { rootMargin: '-35% 0px -55% 0px' }
+    );
+    ids.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    });
+    return () => observer.disconnect();
+  }, []);
+
+  // Heure locale (Paris) affichée dans le footer
+  useEffect(() => {
+    const fmt = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' });
+    const tick = () => setParisTime(fmt.format(new Date()));
+    tick();
+    const interval = setInterval(tick, 30_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const copyToClipboard = (value: string, key: string) => {
+    navigator.clipboard?.writeText(value).then(() => {
+      setCopied(key);
+      setTimeout(() => setCopied(c => (c === key ? null : c)), 2000);
+    });
+  };
+
+  // Barre de progression globale du scroll
+  const { scrollYProgress: pageProgress } = useScroll();
+  const pageProgressScale = useSpring(pageProgress, { stiffness: 120, damping: 30, restDelta: 0.001 });
+
   const scrollTo = (hash: string) => {
     setMenuOpen(false);
-    lenisRef.current?.scrollTo(hash, { offset: 0, duration: 1.6 });
+    if (lenisRef.current) {
+      lenisRef.current.scrollTo(hash, { offset: 0, duration: 1.6 });
+    } else {
+      document.querySelector(hash)?.scrollIntoView();
+    }
   };
 
   // Hero scrollytelling : la vidéo se "scrub" sur 300vh
@@ -118,11 +166,17 @@ export default function App() {
     target: heroRef,
     offset: ['start start', 'end end'],
   });
+  const smoothHeroProgress = useSpring(heroProgress, {
+    stiffness: 45,
+    damping: 15,
+    mass: 0.2,
+    restDelta: 0.0005
+  });
   const heroTextY = useTransform(heroProgress, [0, 0.3], [0, -140]);
   const heroTextOpacity = useTransform(heroProgress, [0.12, 0.28], [1, 0]);
   const midTextOpacity = useTransform(heroProgress, [0.4, 0.52, 0.68, 0.8], [0, 1, 1, 0]);
   const midTextY = useTransform(heroProgress, [0.4, 0.8], [60, -60]);
-  const videoScale = useTransform(heroProgress, [0, 1], [1, 1.12]);
+  const videoScale = useTransform(smoothHeroProgress, [0, 1], [1, 1.12]);
   const progressLine = useTransform(heroProgress, [0, 1], ['0%', '100%']);
 
   const footerRef = useRef(null);
@@ -185,7 +239,7 @@ export default function App() {
         longDesc: 'Conception complète de la landing page pour Atelier Kawa, artisan torréfacteur. Design immersif avec vidéo hero en plein écran, animations au scroll, section storytelling et formulaire de commande. Stack : HTML/CSS/JS + Vite.',
         tags: ['Landing Page', 'Web Design', 'Animations'],
         year: '2026',
-        img: '/projects/atelier-kawa.png',
+        img: '/projects/atelier-kawa.webp',
         link: 'http://localhost:3001'
       },
       {
@@ -194,7 +248,7 @@ export default function App() {
         longDesc: 'Landing page premium pour l\'application Complice, conçue pour convertir des utilisateurs. Design épuré, dark mode, section features animées, témoignages et CTA stratégiques. Déployée sur Vercel.',
         tags: ['Landing Page', 'React', 'Vercel'],
         year: '2026',
-        img: '/projects/complice.png',
+        img: '/projects/complice.webp',
         link: 'https://complice-landing-page.vercel.app'
       }
     ],
@@ -205,7 +259,7 @@ export default function App() {
         longDesc: 'Application mobile de productivité inspirée du système d\'intentionnalité. Routine matinale, timer Pomodoro, intentions du jour, suivi d\'humeur et objectifs hebdomadaires. Construite avec React Native + IA pour les suggestions personnalisées.',
         tags: ['App', 'Productivité', 'React Native', 'IA'],
         year: '2026',
-        img: '/projects/complice-app.png',
+        img: '/projects/complice-app.webp',
         link: 'https://complice-nu.vercel.app'
       },
       {
@@ -214,7 +268,7 @@ export default function App() {
         longDesc: 'Forge est le module de tracking sportif de l\'écosystème Bushi. Suivi de séances en temps réel, progression des charges, RPE dial, coach vocal, smart progression par l\'IA et partage de performances. Interface dark inspirée des arts martiaux.',
         tags: ['App', 'Sport', 'React', 'IA Coach'],
         year: '2026',
-        img: '/projects/forge.png',
+        img: '/projects/forge.webp',
         link: '#'
       },
       {
@@ -223,7 +277,7 @@ export default function App() {
         longDesc: 'MVP d\'une application de coaching sportif au design japonais. Interface sombre et premium avec suivi de séances, anneau de progression, calendrier d\'entraînement et stats personnalisées. Conçue pour transformer le sport en discipline de vie.',
         tags: ['App Design', 'UI/UX', 'Mobile'],
         year: '2026',
-        img: '/projects/bushido.png',
+        img: '/projects/bushido.webp',
         link: '#'
       },
       {
@@ -232,7 +286,7 @@ export default function App() {
         longDesc: 'Dashboard de pilotage complet pour une agence digitale. Vue d\'ensemble en temps réel des KPIs (leads, conversion, rétention), SEO score, Google My Business, veille concurrentielle et consultant IA intégré via Ollama. Interface dark avec accents néon.',
         tags: ['IA', 'Dashboard', 'React', 'Ollama'],
         year: '2026',
-        img: '/projects/agence-sw.png',
+        img: '/projects/agence-sw.webp',
         link: '#'
       }
     ]
@@ -244,21 +298,21 @@ export default function App() {
       category: "IA & Automatisation",
       date: "17 Jui 2026",
       readTime: "5 min",
-      img: "https://images.unsplash.com/photo-1674027444485-cec3da58eef4?q=80&w=2000&auto=format&fit=crop"
+      img: "https://images.unsplash.com/photo-1674027444485-cec3da58eef4?q=75&w=1200&auto=format&fit=crop"
     },
     {
       title: "Comment optimiser vos conversions avec l'A/B testing",
       category: "Marketing Digital",
       date: "04 Jui 2026",
       readTime: "8 min",
-      img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=2000&auto=format&fit=crop"
+      img: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=75&w=1200&auto=format&fit=crop"
     },
     {
       title: "Créer des expériences web immersives avec WebGL",
       category: "Web Design",
       date: "22 Mai 2026",
       readTime: "6 min",
-      img: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=2000&auto=format&fit=crop"
+      img: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=75&w=1200&auto=format&fit=crop"
     }
   ];
 
@@ -277,34 +331,47 @@ export default function App() {
   ] as const;
 
   return (
+    <MotionConfig reducedMotion="user">
     <div className="noise w-full min-h-screen text-[#F0E2D3] font-sans overflow-x-clip bg-[#121212]">
       <Preloader />
       <Cursor />
 
+      {/* Barre de progression globale du scroll */}
+      <motion.div
+        style={{ scaleX: pageProgressScale }}
+        className="fixed top-0 left-0 right-0 h-[2px] bg-[#B86443] origin-left z-[60]"
+        aria-hidden="true"
+      />
+
       {/* Navigation — logo à gauche, pastille de verre flottante à droite */}
       <nav className="fixed top-0 left-0 w-full flex items-center justify-between px-6 md:px-10 py-6 z-50 mix-blend-exclusion">
-        <button onClick={() => scrollTo('#top')} className="flex flex-col justify-center text-left group">
+        <button onClick={() => scrollTo('#top')} className="flex flex-col justify-center text-left group" aria-label="Retour en haut">
           <span className="text-[0.95rem] font-sans font-bold tracking-[0.18em] leading-none mb-1">MC CLENNY</span>
           <span className="text-2xl font-signature font-normal leading-none opacity-90 group-hover:text-[#B86443] transition-colors duration-500">Kareem</span>
         </button>
         <div className="hidden md:flex items-center gap-8 rounded-full border border-[#F0E2D3]/15 bg-[#121212]/40 backdrop-blur-xl px-8 py-3.5">
-          {navLinks.map(([href, label]) => (
-            <a
-              key={href}
-              href={href}
-              onClick={e => { e.preventDefault(); scrollTo(href); }}
-              className="relative text-[11px] font-semibold tracking-[0.2em] uppercase group"
-            >
-              {label}
-              <span className="absolute -bottom-1 left-0 w-full h-px bg-[#B86443] origin-right scale-x-0 group-hover:origin-left group-hover:scale-x-100 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]" />
-            </a>
-          ))}
+          {navLinks.map(([href, label]) => {
+            const isActive = activeSection === href.slice(1);
+            return (
+              <a
+                key={href}
+                href={href}
+                onClick={e => { e.preventDefault(); scrollTo(href); }}
+                aria-current={isActive ? 'true' : undefined}
+                className={`relative text-[11px] font-semibold tracking-[0.2em] uppercase group transition-colors duration-500 ${isActive ? 'text-[#B86443]' : ''}`}
+              >
+                {label}
+                <span className={`absolute -bottom-1 left-0 w-full h-px bg-[#B86443] transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${isActive ? 'scale-x-100' : 'origin-right scale-x-0 group-hover:origin-left group-hover:scale-x-100'}`} />
+              </a>
+            );
+          })}
         </div>
         {/* Burger mobile */}
         <button
           onClick={() => setMenuOpen(!menuOpen)}
           className="md:hidden relative w-11 h-11 rounded-full border border-[#F0E2D3]/20 flex items-center justify-center"
           aria-label="Menu"
+          aria-expanded={menuOpen}
         >
           <span className={`absolute w-4 h-px bg-[#F0E2D3] transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${menuOpen ? 'rotate-45' : '-translate-y-[3px]'}`} />
           <span className={`absolute w-4 h-px bg-[#F0E2D3] transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${menuOpen ? '-rotate-45' : 'translate-y-[3px]'}`} />
@@ -344,9 +411,14 @@ export default function App() {
       <section ref={heroRef} id="top" className="relative h-[300vh] w-full">
         <div className="sticky top-0 h-screen w-full overflow-hidden flex flex-col justify-end items-center pb-24 md:pb-32 px-6 md:px-10">
           <motion.div style={{ scale: videoScale }} className="absolute inset-0 z-0 will-change-transform">
-            <ScrubVideo
+            <video
               src={HERO_VIDEO}
-              progress={heroProgress}
+              poster="/hero-poster.jpg"
+              autoPlay={!prefersReducedMotion}
+              loop
+              muted
+              playsInline
+              aria-hidden="true"
               className="absolute inset-0 w-full h-full object-cover pointer-events-none"
             />
           </motion.div>
@@ -405,7 +477,7 @@ export default function App() {
 
           {/* Liens sociaux + progression de la marche */}
           <div className="absolute bottom-10 right-6 md:right-10 z-20 hidden md:flex gap-8">
-            {[['https://linkedin.com', 'LinkedIn'], ['https://behance.net', 'Behance']].map(([href, label]) => (
+            {[['https://linkedin.com', 'LinkedIn'], ['https://behance.net', 'Behance'], ['https://github.com/kareemmc-ctrl', 'GitHub']].map(([href, label]) => (
               <a key={label} href={href} target="_blank" rel="noopener noreferrer"
                 className="text-[11px] font-semibold tracking-[0.2em] uppercase text-[#F0E2D3]/60 hover:text-[#B86443] transition-colors duration-500">
                 {label}
@@ -421,13 +493,22 @@ export default function App() {
         </div>
       </section>
 
-      {/* Marquee réactif à la vélocité du scroll */}
-      <section className="py-16 md:py-20 border-y border-[#F0E2D3]/10 bg-[#121212] relative z-20">
+      {/* Double marquee réactif à la vélocité du scroll : métiers + stack technique */}
+      <section className="py-14 md:py-16 border-y border-[#F0E2D3]/10 bg-[#121212] relative z-20 flex flex-col gap-8">
         <VelocityMarquee baseVelocity={1.5}>
           {['Marketing Digital', 'Design UX/UI', 'Intégration IA'].map(t => (
             <span key={t} className="mx-8 flex items-center gap-16 font-display text-[clamp(3rem,6vw,5.5rem)] font-light tracking-tight">
               <span className="text-[#F0E2D3]/10 hover:text-[#B86443]/40 transition-colors duration-700">{t}</span>
               <span className="text-[#B86443]/30 text-3xl">✦</span>
+            </span>
+          ))}
+        </VelocityMarquee>
+        <VelocityMarquee baseVelocity={-1}>
+          {['React', 'TypeScript', 'Figma', 'Motion', 'Tailwind CSS', 'IA Générative', 'Three.js', 'Node.js'].map(t => (
+            <span key={t} className="mx-3 inline-flex items-center">
+              <span className="rounded-full border border-[#F0E2D3]/12 px-5 py-2 text-[11px] uppercase tracking-[0.25em] font-medium text-[#F0E2D3]/35 hover:text-[#B86443] hover:border-[#B86443]/40 transition-colors duration-500">
+                {t}
+              </span>
             </span>
           ))}
         </VelocityMarquee>
@@ -526,7 +607,9 @@ export default function App() {
                   >
                     <motion.img
                       src={project.img}
-                      alt={project.title}
+                      alt={`Aperçu du projet ${project.title}`}
+                      loading="lazy"
+                      decoding="async"
                       variants={{ hidden: { scale: 1.25 }, visible: { scale: 1 } }}
                       transition={{ duration: 1.4, ease: EASE }}
                       className="w-full h-full object-cover group-hover:scale-[1.06] transition-transform duration-[1.2s] ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform"
@@ -561,66 +644,74 @@ export default function App() {
         </div>
       </section>
 
-      {/* Journal */}
-      <section id="journal" className="py-32 px-6 md:px-16 max-w-7xl mx-auto border-t border-[#F0E2D3]/10">
-        <div className="flex flex-col md:flex-row md:items-end justify-between mb-24 gap-12">
-          <div>
-            <span className="rounded-full border border-[#F0E2D3]/15 px-4 py-1.5 text-[10px] uppercase tracking-[0.25em] font-medium text-[#F0E2D3]/60 inline-block mb-8">
-              Réflexions
-            </span>
-            <h2 className="font-display text-[clamp(2.5rem,5vw,4rem)] font-light tracking-tight">
-              <LineReveal>Le <em className="italic text-[#B86443]">journal</em></LineReveal>
-            </h2>
+      {/* Journal — grande feuille de papier crème qui casse le fond sombre */}
+      <section id="journal" className="paper text-[#1c120c] rounded-[2rem] md:rounded-[3rem] mx-2 md:mx-4 relative z-10 overflow-hidden">
+        <div className="py-24 md:py-32 px-6 md:px-16 max-w-7xl mx-auto">
+          <div className="flex flex-col md:flex-row md:items-end justify-between mb-20 md:mb-24 gap-12">
+            <div>
+              <span className="rounded-full border border-[#1c120c]/15 px-4 py-1.5 text-[10px] uppercase tracking-[0.25em] font-semibold text-[#B86443] inline-block mb-8">
+                Réflexions
+              </span>
+              <h2 className="font-display text-[clamp(2.5rem,5vw,4rem)] font-light tracking-tight">
+                <LineReveal>Le <em className="italic text-[#B86443]">journal</em></LineReveal>
+              </h2>
+            </div>
+
+            <div className="flex flex-wrap gap-6 border-b border-[#1c120c]/10 pb-4">
+              {blogCategories.map(category => (
+                <button
+                  key={category}
+                  onClick={() => setActiveBlogCategory(category)}
+                  className={`text-base md:text-lg font-medium tracking-tight transition-colors duration-500 ${activeBlogCategory === category ? 'text-[#B86443]' : 'text-[#1c120c]/40 hover:text-[#1c120c]'}`}
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="flex flex-wrap gap-6 border-b border-[#F0E2D3]/10 pb-4">
-            {blogCategories.map(category => (
-              <button
-                key={category}
-                onClick={() => setActiveBlogCategory(category)}
-                className={`text-base md:text-lg font-medium tracking-tight transition-colors duration-500 ${activeBlogCategory === category ? 'text-[#B86443]' : 'text-[#F0E2D3]/40 hover:text-[#F0E2D3]'}`}
-              >
-                {category}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <AnimatePresence mode="wait">
-            {filteredPosts.map((post, idx) => (
-              <motion.div
-                key={post.title}
-                initial={{ opacity: 0, y: 40 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: '-50px' }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.7, delay: idx * 0.1, ease: EASE }}
-                className="group cursor-pointer flex flex-col"
-              >
-                <div className="w-full aspect-[4/3] bg-[#1a1a1a] overflow-hidden mb-6 relative rounded-2xl border border-[#F0E2D3]/8">
-                  <div className="absolute inset-0 bg-[#121212]/40 opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-10 flex items-center justify-center">
-                    <div className="w-12 h-12 rounded-full bg-[#B86443] flex items-center justify-center text-[#121212] -rotate-45 group-hover:rotate-0 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]">
-                      <ArrowUpRight size={22} strokeWidth={1.5} />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <AnimatePresence mode="wait">
+              {filteredPosts.map((post, idx) => (
+                <motion.div
+                  key={post.title}
+                  initial={{ opacity: 0, y: 40 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: '-50px' }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.7, delay: idx * 0.1, ease: EASE }}
+                  className="group cursor-pointer flex flex-col"
+                >
+                  <div className="w-full aspect-[4/3] bg-[#1c120c]/5 overflow-hidden mb-6 relative rounded-2xl shadow-[0_18px_40px_-24px_rgba(28,18,12,0.35)]">
+                    <div className="absolute inset-0 bg-[#121212]/40 opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-10 flex items-center justify-center">
+                      <div className="w-12 h-12 rounded-full bg-[#B86443] flex items-center justify-center text-[#FAF5EB] -rotate-45 group-hover:rotate-0 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]">
+                        <ArrowUpRight size={22} strokeWidth={1.5} />
+                      </div>
                     </div>
+                    <img
+                      src={post.img}
+                      alt={`Illustration de l'article : ${post.title}`}
+                      loading="lazy"
+                      decoding="async"
+                      className="w-full h-full object-cover group-hover:scale-[1.06] transition-transform duration-[1.2s] ease-[cubic-bezier(0.32,0.72,0,1)]"
+                    />
                   </div>
-                  <img src={post.img} alt={post.title} className="w-full h-full object-cover group-hover:scale-[1.06] transition-transform duration-[1.2s] ease-[cubic-bezier(0.32,0.72,0,1)]" />
-                </div>
 
-                <div className="flex items-center gap-4 text-[10px] font-mono uppercase tracking-[0.2em] text-[#F0E2D3]/50 mb-3">
-                  <span className="text-[#B86443] font-semibold">{post.category}</span>
-                  <span>•</span>
-                  <span>{post.readTime}</span>
-                </div>
+                  <div className="flex items-center gap-4 text-[10px] font-mono uppercase tracking-[0.2em] text-[#1c120c]/50 mb-3">
+                    <span className="text-[#B86443] font-semibold">{post.category}</span>
+                    <span>•</span>
+                    <span>{post.readTime}</span>
+                  </div>
 
-                <h3 className="font-display text-xl md:text-2xl font-medium leading-tight group-hover:text-[#B86443] transition-colors duration-500">{post.title}</h3>
+                  <h3 className="font-display text-xl md:text-2xl font-medium leading-tight group-hover:text-[#B86443] transition-colors duration-500">{post.title}</h3>
 
-                <div className="mt-auto pt-6 text-sm font-medium opacity-50">
-                  {post.date}
-                </div>
-              </motion.div>
-            ))}
-          </AnimatePresence>
+                  <div className="mt-auto pt-6 text-sm font-medium opacity-50">
+                    {post.date}
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
         </div>
       </section>
 
@@ -636,98 +727,190 @@ export default function App() {
         </div>
 
         <div className="max-w-4xl mx-auto">
-          <FaqItem
-            question="Quels types de projets acceptez-vous ?"
-            answer="Je travaille avec des startups, des agences et des entreprises de toutes tailles pour concevoir des expériences web sur mesure (sites vitrines, e-commerce, portfolios) et intégrer des solutions IA (automatisations, bots, optimisation de flux de travail)."
-          />
-          <FaqItem
-            question="Combien de temps faut-il pour créer un site web ?"
-            answer="Le délai dépend de la complexité du projet. Une landing page ou un site vitrine peut prendre entre 2 et 4 semaines, tandis qu'une application sur mesure ou une plateforme e-commerce complexe peut nécessiter 2 à 3 mois."
-          />
-          <FaqItem
-            question="Comment l'IA peut-elle aider mon entreprise ?"
-            answer="L'IA peut transformer votre entreprise de multiples façons : automatisation des tâches répétitives (emails, génération de rapports), création de chatbots pour le service client, ou encore génération de contenu intelligent. L'objectif est de vous faire gagner du temps et de la valeur."
-          />
-          <FaqItem
-            question="Faites-vous aussi du SEO et du marketing digital ?"
-            answer="Absolument. Mon approche est holistique : un beau site web ne sert à rien s'il n'est pas vu. J'intègre les meilleures pratiques SEO dès la conception et je peux vous accompagner sur vos stratégies d'acquisition et de conversion."
-          />
+          {[
+            {
+              question: 'Quels types de projets acceptez-vous ?',
+              answer: "Je travaille avec des startups, des agences et des entreprises de toutes tailles pour concevoir des expériences web sur mesure (sites vitrines, e-commerce, portfolios) et intégrer des solutions IA (automatisations, bots, optimisation de flux de travail).",
+            },
+            {
+              question: 'Combien de temps faut-il pour créer un site web ?',
+              answer: "Le délai dépend de la complexité du projet. Une landing page ou un site vitrine peut prendre entre 2 et 4 semaines, tandis qu'une application sur mesure ou une plateforme e-commerce complexe peut nécessiter 2 à 3 mois.",
+            },
+            {
+              question: "Comment l'IA peut-elle aider mon entreprise ?",
+              answer: "L'IA peut transformer votre entreprise de multiples façons : automatisation des tâches répétitives (emails, génération de rapports), création de chatbots pour le service client, ou encore génération de contenu intelligent. L'objectif est de vous faire gagner du temps et de la valeur.",
+            },
+            {
+              question: 'Faites-vous aussi du SEO et du marketing digital ?',
+              answer: "Absolument. Mon approche est holistique : un beau site web ne sert à rien s'il n'est pas vu. J'intègre les meilleures pratiques SEO dès la conception et je peux vous accompagner sur vos stratégies d'acquisition et de conversion.",
+            },
+          ].map((faq, i) => (
+            <FaqItem
+              key={faq.question}
+              question={faq.question}
+              answer={faq.answer}
+              isOpen={openFaq === i}
+              onToggle={() => setOpenFaq(openFaq === i ? null : i)}
+            />
+          ))}
         </div>
       </section>
 
-      {/* Footer / Contact */}
-      <footer ref={footerRef} id="contact" className="pt-32 pb-16 px-6 md:px-16 bg-[#B86443] text-[#121212] overflow-hidden relative">
+      {/* Footer / Contact — grand bloc terracotta */}
+      <footer ref={footerRef} id="contact" className="pt-28 md:pt-36 pb-10 px-6 md:px-16 bg-[#B86443] text-[#121212] overflow-hidden relative rounded-t-[2rem] md:rounded-t-[3rem] -mt-6 z-10">
+        {/* Halo décoratif */}
+        <div className="absolute -top-40 right-[-10%] w-[42rem] h-[42rem] rounded-full bg-[#F0E2D3] opacity-[0.07] blur-3xl pointer-events-none" />
         <motion.div style={{ y: footerY }} className="w-full relative z-10">
-          <div className="max-w-7xl mx-auto flex flex-col lg:flex-row justify-between gap-24">
 
-            {/* Colonne gauche */}
-            <div className="flex-1 flex flex-col justify-between">
+          {/* En-tête : disponibilité + titre + CTA email */}
+          <div className="max-w-7xl mx-auto mb-20 md:mb-28">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.8, ease: EASE }}
+              className="inline-flex items-center gap-3 rounded-full border border-[#121212]/20 bg-[#121212]/5 px-5 py-2.5 mb-10"
+            >
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#1e3b2a] opacity-60" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#1e5231]" />
+              </span>
+              <span className="text-[11px] font-bold uppercase tracking-[0.2em]">Disponible pour de nouveaux projets</span>
+            </motion.div>
+
+            <h2 className="font-display font-light text-[clamp(3.2rem,9vw,8.5rem)] leading-[0.95] tracking-tight mb-12">
+              <LineReveal>Une idée ?</LineReveal>
+              <LineReveal delay={0.12}>Travaillons <em className="italic">ensemble.</em></LineReveal>
+            </h2>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.8, delay: 0.25, ease: EASE }}
+              className="flex flex-wrap items-center gap-4"
+            >
+              <a
+                href="mailto:kareemmcclenny@gmail.com"
+                className="group inline-flex items-center gap-4 pl-8 pr-2.5 py-2.5 bg-[#121212] text-[#F0E2D3] rounded-full font-semibold text-base md:text-lg tracking-wide transition-colors duration-500 hover:bg-[#F0E2D3] hover:text-[#121212] active:scale-[0.98]"
+              >
+                kareemmcclenny@gmail.com
+                <span className="w-10 h-10 md:w-11 md:h-11 rounded-full bg-[#F0E2D3]/10 group-hover:bg-[#121212]/10 flex items-center justify-center transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5">
+                  <ArrowUpRight size={19} strokeWidth={1.5} />
+                </span>
+              </a>
+              <button
+                onClick={() => copyToClipboard('kareemmcclenny@gmail.com', 'email')}
+                aria-label="Copier l'adresse email"
+                className="inline-flex items-center gap-2.5 rounded-full border border-[#121212]/25 px-6 py-3.5 text-[12px] font-bold uppercase tracking-[0.15em] transition-colors duration-500 hover:bg-[#121212]/10 active:scale-[0.98]"
+              >
+                {copied === 'email' ? <Check size={15} strokeWidth={2} /> : <Copy size={15} strokeWidth={1.75} />}
+                {copied === 'email' ? 'Copié !' : "Copier l'email"}
+              </button>
+            </motion.div>
+          </div>
+
+          {/* Grille : infos à gauche, formulaire à droite */}
+          <div className="max-w-7xl mx-auto grid lg:grid-cols-[1fr_1.1fr] gap-16 lg:gap-24 border-t border-[#121212]/15 pt-16 md:pt-20">
+
+            {/* Colonne infos */}
+            <div className="flex flex-col gap-12">
               <div>
-                <h2 className="font-display font-light text-[clamp(3.5rem,8vw,7.5rem)] leading-[0.95] tracking-tight mb-12">
-                  <LineReveal>Travaillons</LineReveal>
-                  <LineReveal delay={0.12}><em className="italic">ensemble.</em></LineReveal>
-                </h2>
-                <div className="flex flex-col gap-6 text-xl md:text-3xl font-medium tracking-tight">
-                  <a href="mailto:kareemmcclenny@gmail.com" className="group hover:opacity-60 transition-opacity duration-500 flex items-center gap-4">
-                    <span className="w-11 h-11 rounded-full border border-[#121212]/25 flex items-center justify-center shrink-0 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5">
-                      <ArrowUpRight size={22} strokeWidth={1.5} />
+                <span className="text-[10px] font-bold uppercase tracking-[0.25em] opacity-60 mb-5 block">Contact direct</span>
+                <div className="flex flex-col gap-4 text-lg md:text-xl font-medium tracking-tight">
+                  <button
+                    onClick={() => copyToClipboard('07 49 80 86 98', 'tel')}
+                    className="group flex items-center gap-4 text-left hover:opacity-70 transition-opacity duration-500"
+                    aria-label="Copier le numéro de téléphone"
+                  >
+                    <span className="w-10 h-10 rounded-full border border-[#121212]/25 flex items-center justify-center shrink-0">
+                      {copied === 'tel' ? <Check size={16} strokeWidth={2} /> : <Copy size={15} strokeWidth={1.75} />}
                     </span>
-                    kareemmcclenny@gmail.com
-                  </a>
-                  <a href="tel:0749808698" className="group hover:opacity-60 transition-opacity duration-500 flex items-center gap-4">
-                    <span className="w-11 h-11 rounded-full border border-[#121212]/25 flex items-center justify-center shrink-0 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5">
-                      <ArrowUpRight size={22} strokeWidth={1.5} />
+                    {copied === 'tel' ? 'Numéro copié !' : '07 49 80 86 98'}
+                  </button>
+                  <span className="flex items-center gap-4 opacity-80">
+                    <span className="w-10 h-10 rounded-full border border-[#121212]/25 flex items-center justify-center shrink-0">
+                      <MapPin size={16} strokeWidth={1.5} />
                     </span>
-                    07 49 80 86 98
-                  </a>
+                    Paris, France — {parisTime && `${parisTime} heure locale`}
+                  </span>
                 </div>
               </div>
 
-              <div className="hidden lg:flex flex-col text-left mt-32">
-                <span className="text-xs font-semibold opacity-70 uppercase tracking-[0.2em] mb-6">Liens Rapides</span>
-                <div className="flex flex-col gap-4 mb-8">
-                  <a href="#mentions-legales" className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.2em] opacity-60 hover:opacity-100 transition-opacity duration-500">
-                    <FileText size={15} strokeWidth={1.5} /> Mentions Légales
-                  </a>
-                  <a href="#confidentialite" className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.2em] opacity-60 hover:opacity-100 transition-opacity duration-500">
-                    <Shield size={15} strokeWidth={1.5} /> Politique de Confidentialité
-                  </a>
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-[0.25em] opacity-60 mb-5 block">Réseaux</span>
+                <div className="flex flex-wrap gap-3">
+                  {[
+                    ['https://linkedin.com', 'LinkedIn'],
+                    ['https://behance.net', 'Behance'],
+                    ['https://github.com/kareemmc-ctrl', 'GitHub'],
+                  ].map(([href, label]) => (
+                    <a
+                      key={label}
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group inline-flex items-center gap-2.5 rounded-full border border-[#121212]/25 pl-5 pr-2 py-2 text-[12px] font-bold uppercase tracking-[0.15em] transition-colors duration-500 hover:bg-[#121212] hover:text-[#F0E2D3] hover:border-[#121212]"
+                    >
+                      {label}
+                      <span className="w-7 h-7 rounded-full bg-[#121212]/10 group-hover:bg-[#F0E2D3]/15 flex items-center justify-center transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5">
+                        <ArrowUpRight size={13} strokeWidth={1.75} />
+                      </span>
+                    </a>
+                  ))}
                 </div>
-                <span className="text-xs font-semibold opacity-70 uppercase tracking-[0.2em]">© 2026 Tous droits réservés</span>
+              </div>
+
+              <div className="hidden lg:block mt-auto">
+                <span className="text-[10px] font-bold uppercase tracking-[0.25em] opacity-60 mb-5 block">Navigation</span>
+                <div className="grid grid-cols-2 gap-x-8 gap-y-3 max-w-xs">
+                  {navLinks.map(([href, label]) => (
+                    <a
+                      key={href}
+                      href={href}
+                      onClick={e => { e.preventDefault(); scrollTo(href); }}
+                      className="text-[12px] font-bold uppercase tracking-[0.15em] opacity-70 hover:opacity-100 transition-opacity duration-500"
+                    >
+                      {label}
+                    </a>
+                  ))}
+                </div>
               </div>
             </div>
 
-            {/* Colonne droite - Formulaire */}
+            {/* Colonne formulaire */}
             <motion.div
               initial={{ opacity: 0, y: 60 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: '-100px' }}
               transition={{ duration: 1, delay: 0.2, ease: EASE }}
-              className="flex-1 w-full max-w-xl lg:ml-auto"
+              className="w-full"
             >
-              <form onSubmit={handleFormSubmit} className="flex flex-col gap-10">
-                <div className="relative">
-                  <label className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-60 mb-2 block">Quel est votre nom ?</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.name}
-                    onChange={e => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="Jean Dupont"
-                    className="w-full bg-transparent border-b-2 border-[#121212]/30 py-3 text-2xl font-medium placeholder:text-[#121212]/30 focus:border-[#121212] outline-none transition-colors duration-500"
-                  />
-                </div>
-
-                <div className="relative">
-                  <label className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-60 mb-2 block">Votre adresse email</label>
-                  <input
-                    type="email"
-                    required
-                    value={formData.email}
-                    onChange={e => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="jean@exemple.com"
-                    className="w-full bg-transparent border-b-2 border-[#121212]/30 py-3 text-2xl font-medium placeholder:text-[#121212]/30 focus:border-[#121212] outline-none transition-colors duration-500"
-                  />
+              <span className="text-[10px] font-bold uppercase tracking-[0.25em] opacity-60 mb-8 block">Ou décrivez votre projet</span>
+              <form onSubmit={handleFormSubmit} className="flex flex-col gap-9">
+                <div className="grid md:grid-cols-2 gap-9">
+                  <div className="relative">
+                    <label className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-60 mb-2 block">Votre nom</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.name}
+                      onChange={e => setFormData({ ...formData, name: e.target.value })}
+                      placeholder="Jean Dupont"
+                      className="w-full bg-transparent border-b-2 border-[#121212]/30 py-3 text-xl font-medium placeholder:text-[#121212]/30 focus:border-[#121212] outline-none transition-colors duration-500"
+                    />
+                  </div>
+                  <div className="relative">
+                    <label className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-60 mb-2 block">Votre email</label>
+                    <input
+                      type="email"
+                      required
+                      value={formData.email}
+                      onChange={e => setFormData({ ...formData, email: e.target.value })}
+                      placeholder="jean@exemple.com"
+                      className="w-full bg-transparent border-b-2 border-[#121212]/30 py-3 text-xl font-medium placeholder:text-[#121212]/30 focus:border-[#121212] outline-none transition-colors duration-500"
+                    />
+                  </div>
                 </div>
 
                 <div className="relative">
@@ -737,14 +920,14 @@ export default function App() {
                       required
                       value={formData.service}
                       onChange={e => setFormData({ ...formData, service: e.target.value })}
-                      className="w-full bg-transparent border-b-2 border-[#121212]/30 py-3 text-2xl font-medium focus:border-[#121212] outline-none transition-colors duration-500 appearance-none cursor-pointer rounded-none"
+                      className="w-full bg-transparent border-b-2 border-[#121212]/30 py-3 text-xl font-medium focus:border-[#121212] outline-none transition-colors duration-500 appearance-none cursor-pointer rounded-none"
                     >
                       <option value="Webdesign & UX/UI">Webdesign & UX/UI</option>
                       <option value="Intelligence Artificielle">Solutions IA (Apps, Workflows)</option>
                       <option value="Marketing Digital">Marketing Digital & Stratégie</option>
                       <option value="Autre demande">Autre demande</option>
                     </select>
-                    <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none opacity-50" size={24} strokeWidth={1.5} />
+                    <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none opacity-50" size={22} strokeWidth={1.5} />
                   </div>
                 </div>
 
@@ -756,11 +939,11 @@ export default function App() {
                     value={formData.message}
                     onChange={e => setFormData({ ...formData, message: e.target.value })}
                     placeholder="Bonjour, je cherche un expert pour..."
-                    className="w-full bg-transparent border-b-2 border-[#121212]/30 py-3 text-xl font-medium placeholder:text-[#121212]/30 focus:border-[#121212] outline-none transition-colors duration-500 resize-none"
+                    className="w-full bg-transparent border-b-2 border-[#121212]/30 py-3 text-lg font-medium placeholder:text-[#121212]/30 focus:border-[#121212] outline-none transition-colors duration-500 resize-none"
                   />
                 </div>
 
-                <button type="submit" className="group self-start mt-4 pl-10 pr-2.5 py-2.5 bg-[#121212] text-[#F0E2D3] rounded-full font-bold tracking-[0.15em] uppercase text-sm transition-colors duration-500 hover:bg-[#F0E2D3] hover:text-[#121212] flex items-center gap-4 active:scale-[0.98]">
+                <button type="submit" className="group self-start mt-2 pl-10 pr-2.5 py-2.5 bg-[#121212] text-[#F0E2D3] rounded-full font-bold tracking-[0.15em] uppercase text-sm transition-colors duration-500 hover:bg-[#F0E2D3] hover:text-[#121212] flex items-center gap-4 active:scale-[0.98]">
                   Envoyer le message
                   <span className="w-10 h-10 rounded-full bg-[#F0E2D3]/10 group-hover:bg-[#121212]/10 flex items-center justify-center transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5">
                     <ArrowUpRight size={17} strokeWidth={1.5} />
@@ -771,38 +954,42 @@ export default function App() {
           </div>
 
           {/* Signature géante */}
-          <div className="max-w-7xl mx-auto mt-24 pt-8 border-t border-[#121212]/15 flex justify-center overflow-hidden">
+          <div className="max-w-7xl mx-auto mt-24 md:mt-28 flex justify-center overflow-hidden" aria-hidden="true">
             <motion.span
-              initial={{ opacity: 0, y: 40 }}
+              initial={{ opacity: 0, y: 50 }}
               whileInView={{ opacity: 0.9, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 1.2, ease: EASE }}
-              className="font-signature text-[clamp(4rem,12vw,10rem)] leading-none -rotate-2 select-none"
+              className="font-signature text-[clamp(4.5rem,14vw,12rem)] leading-none -rotate-2 select-none"
             >
               Kareem
             </motion.span>
           </div>
 
-          {/* Footer mobile */}
-          <div className="mt-16 pt-8 border-t border-[#121212]/20 flex flex-col items-center gap-6 lg:hidden relative z-10">
-            <span className="text-[10px] font-semibold opacity-70 uppercase tracking-[0.2em]">© 2026 Tous droits réservés</span>
-            <div className="flex gap-8">
-              <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" className="font-bold uppercase text-xs tracking-[0.2em] hover:opacity-60 transition-opacity">LinkedIn</a>
-              <a href="https://behance.net" target="_blank" rel="noopener noreferrer" className="font-bold uppercase text-xs tracking-[0.2em] hover:opacity-60 transition-opacity">Behance</a>
-            </div>
-            <div className="flex flex-col sm:flex-row justify-center gap-6">
-              <a href="#mentions-legales" className="flex items-center justify-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] opacity-60 hover:opacity-100 transition-opacity">
+          {/* Barre de bas de page */}
+          <div className="max-w-7xl mx-auto mt-12 pt-8 border-t border-[#121212]/20 flex flex-col md:flex-row items-center justify-between gap-6">
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-70 text-center md:text-left">
+              © 2026 MC CLENNY Kareem — Conçu & développé avec soin
+            </span>
+            <div className="flex items-center gap-6">
+              <a href="#mentions-legales" className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] opacity-60 hover:opacity-100 transition-opacity duration-500">
                 <FileText size={13} strokeWidth={1.5} /> Mentions Légales
               </a>
-              <a href="#confidentialite" className="flex items-center justify-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] opacity-60 hover:opacity-100 transition-opacity">
+              <a href="#confidentialite" className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] opacity-60 hover:opacity-100 transition-opacity duration-500">
                 <Shield size={13} strokeWidth={1.5} /> Confidentialité
               </a>
+              <button
+                onClick={() => scrollTo('#top')}
+                aria-label="Retour en haut de page"
+                className="group w-11 h-11 rounded-full border border-[#121212]/25 flex items-center justify-center transition-colors duration-500 hover:bg-[#121212] hover:text-[#F0E2D3] active:scale-[0.95]"
+              >
+                <ArrowUp size={17} strokeWidth={1.5} className="transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:-translate-y-0.5" />
+              </button>
             </div>
           </div>
         </motion.div>
       </footer>
-
-      <Chatbot />
     </div>
+    </MotionConfig>
   );
 }
