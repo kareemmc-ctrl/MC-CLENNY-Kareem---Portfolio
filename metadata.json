@@ -1,0 +1,6 @@
+{
+  "name": "FramoWeb Portfolio",
+  "description": "Desktop hero section for FramoWeb portfolio.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
