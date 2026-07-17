@@ -68,29 +68,46 @@ export default function App() {
   const projects = {
     webdesign: [
       {
-        title: 'Élévation Marketing',
-        desc: 'Site Corporate • Expérience UX/UI',
-        img: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?q=80&w=2426&auto=format&fit=crop'
+        title: 'Atelier Kawa',
+        desc: 'Landing Page • Torréfaction & Café de spécialité',
+        longDesc: 'Conception complète de la landing page pour Atelier Kawa, artisan torréfacteur. Design immersif avec vidéo hero en plein écran, animations au scroll, section storytelling et formulaire de commande. Stack : HTML/CSS/JS + Vite.',
+        tags: ['Landing Page', 'Web Design', 'Animations'],
+        year: '2026',
+        img: '/projects/atelier-kawa.png',
+        link: 'http://localhost:3001'
       },
       {
-        title: 'Aura Studio E-commerce',
-        desc: 'E-commerce • Design Interactif',
-        img: 'https://images.unsplash.com/photo-1600132806370-bf17e65e942f?q=80&w=2194&auto=format&fit=crop'
+        title: 'Complice',
+        desc: 'Landing Page • Application de productivité & bien-être',
+        longDesc: 'Landing page premium pour l\'application Complice, conçue pour convertir des utilisateurs. Design épuré, dark mode, section features animées, témoignages et CTA stratégiques. Déployée sur Vercel avec gestion de CGU et mentions légales.',
+        tags: ['Landing Page', 'React', 'Vercel'],
+        year: '2026',
+        img: '/projects/complice.png',
+        link: 'https://complice-landing-page.vercel.app'
       }
     ],
     ia: [
       {
-        title: 'Nexus AI App',
-        desc: 'Application Mobile • Traitement IA',
-        img: 'https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=2000&auto=format&fit=crop'
+        title: 'Bushido — App Sport',
+        desc: 'Application Mobile • Coaching sportif inspiré du Bushido',
+        longDesc: 'MVP d\'une application de coaching sportif au design japonais. Interface sombre et premium avec suivi de séances, anneau de progression, calendrier d\'entraînement et stats personnalisées. Conçue pour transformer le sport en discipline de vie.',
+        tags: ['App Design', 'UI/UX', 'Mobile'],
+        year: '2026',
+        img: '/projects/bushido.png',
+        link: '#'
       },
       {
-        title: 'Smart Workflow',
-        desc: 'Infrastructure IA • Automatisation LLM',
-        img: 'https://images.unsplash.com/photo-1678397984856-11f86071ea26?q=80&w=2000&auto=format&fit=crop'
+        title: 'Agence SW — Dashboard IA',
+        desc: 'Tableau de bord IA • Pilotage marketing temps réel',
+        longDesc: 'Dashboard de pilotage complet pour une agence digitale. Vue d\'ensemble en temps réel des KPIs (leads, conversion, rétention), SEO score, Google My Business, veille concurrentielle et consultant IA intégré via Ollama. Interface dark avec accents néon.',
+        tags: ['IA', 'Dashboard', 'React', 'Ollama'],
+        year: '2026',
+        img: '/projects/agence-sw.png',
+        link: '#'
       }
     ]
   };
+
 
   const blogPosts = [
     {
@@ -370,32 +387,57 @@ export default function App() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-24">
           <AnimatePresence mode="wait">
             {projects[activeCategory].map((project, idx) => (
-              <motion.div 
+              <motion.a 
                 key={project.title}
+                href={project.link !== '#' ? project.link : undefined}
+                target={project.link !== '#' ? '_blank' : undefined}
+                rel="noopener noreferrer"
                 initial={{ opacity: 0, y: 50 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-50px" }}
                 exit={{ opacity: 0, y: -40 }}
                 transition={{ duration: 0.7, delay: idx * 0.15, ease: 'easeOut' }}
-                className={`group cursor-pointer ${idx % 2 !== 0 ? 'md:mt-32' : ''}`}
+                className={`group cursor-pointer block ${idx % 2 !== 0 ? 'md:mt-32' : ''}`}
               >
+                {/* Image */}
                 <div className="w-full aspect-[4/3] bg-[#1a1a1a] overflow-hidden mb-8 relative">
                   <div className="absolute inset-0 bg-[#B86443]/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-10 mix-blend-overlay"></div>
-                  <img src={project.img} alt={project.title} className="w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-700" />
+                  {/* Year badge */}
+                  <span className="absolute top-4 left-4 z-20 text-xs font-mono tracking-widest bg-[#121212]/80 text-[#B86443] px-3 py-1 border border-[#B86443]/40">{project.year}</span>
+                  <img 
+                    src={project.img} 
+                    alt={project.title} 
+                    className="w-full h-full object-cover group-hover:scale-105 transition-all duration-700" 
+                  />
                 </div>
-                <div className="flex justify-between items-start">
+
+                {/* Title + arrow */}
+                <div className="flex justify-between items-start mb-4">
                   <div>
                     <h3 className="text-3xl font-semibold mb-2">{project.title}</h3>
                     <span className="text-[#F0E2D3]/50 font-mono text-sm uppercase tracking-widest">{project.desc}</span>
                   </div>
-                  <div className="w-12 h-12 rounded-full border border-[#F0E2D3]/30 flex items-center justify-center group-hover:bg-[#B86443] group-hover:border-[#B86443] transition-all duration-300 -rotate-45 group-hover:rotate-0">
+                  <div className="w-12 h-12 rounded-full border border-[#F0E2D3]/30 flex items-center justify-center group-hover:bg-[#B86443] group-hover:border-[#B86443] transition-all duration-300 -rotate-45 group-hover:rotate-0 flex-shrink-0 ml-4">
                     <ArrowUpRight size={20} />
                   </div>
                 </div>
-              </motion.div>
+
+                {/* Long description */}
+                <p className="text-[#F0E2D3]/60 text-sm leading-relaxed mb-5 max-w-lg">{project.longDesc}</p>
+
+                {/* Tags */}
+                <div className="flex flex-wrap gap-2">
+                  {project.tags.map(tag => (
+                    <span key={tag} className="text-xs font-mono tracking-widest uppercase px-3 py-1 border border-[#F0E2D3]/15 text-[#F0E2D3]/50 hover:border-[#B86443]/60 hover:text-[#B86443] transition-colors duration-200">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </motion.a>
             ))}
           </AnimatePresence>
         </div>
+
       </section>
 
       {/* Journal / Blog Section */}
