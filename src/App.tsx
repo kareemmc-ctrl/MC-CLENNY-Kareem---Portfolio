@@ -1,32 +1,42 @@
-import { motion, useScroll, useTransform, AnimatePresence } from 'motion/react';
-import { useState, useRef } from 'react';
+import { motion, useScroll, useTransform, AnimatePresence, type MotionValue } from 'motion/react';
+import { useState, useRef, useEffect, type FormEvent } from 'react';
 import { ArrowUpRight, ChevronDown, Plus, Minus, FileText, Shield } from 'lucide-react';
+import Lenis from 'lenis';
 import Chatbot from './components/Chatbot';
+import Cursor from './components/Cursor';
+import Preloader from './components/Preloader';
+import ScrubVideo from './components/ScrubVideo';
+import BookSection from './components/BookSection';
+import VelocityMarquee from './components/VelocityMarquee';
+import { LineReveal, WordScrollReveal } from './components/Reveal';
+
+const EASE = [0.32, 0.72, 0, 1] as const;
+const HERO_VIDEO = 'https://d8j0ntlcm91z4.cloudfront.net/user_3GG7Y16i1wZd6gC9IXwtKc5HQug/hf_20260717_115329_696a8707-668a-4222-8eb3-1e7f2fd27998.mp4';
 
 const FaqItem = ({ question, answer }: { question: string, answer: string }) => {
   const [isOpen, setIsOpen] = useState(false);
-  
+
   return (
     <div className="border-b border-[#F0E2D3]/10 py-8">
-      <button 
-        onClick={() => setIsOpen(!isOpen)} 
+      <button
+        onClick={() => setIsOpen(!isOpen)}
         className="w-full flex justify-between items-center text-left focus:outline-none group"
       >
-        <span className="text-2xl font-semibold group-hover:text-[#B86443] transition-colors">{question}</span>
-        <span className="ml-4 flex-shrink-0 text-[#B86443]">
-          {isOpen ? <Minus size={24} /> : <Plus size={24} />}
+        <span className="font-display text-xl md:text-2xl font-medium group-hover:text-[#B86443] transition-colors duration-500">{question}</span>
+        <span className="ml-4 flex-shrink-0 w-10 h-10 rounded-full border border-[#F0E2D3]/15 flex items-center justify-center text-[#B86443] group-hover:border-[#B86443]/60 transition-colors duration-500">
+          {isOpen ? <Minus size={18} strokeWidth={1.5} /> : <Plus size={18} strokeWidth={1.5} />}
         </span>
       </button>
       <AnimatePresence>
         {isOpen && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
+            animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.4, ease: "easeInOut" }}
+            transition={{ duration: 0.6, ease: EASE }}
             className="overflow-hidden"
           >
-            <p className="pt-6 text-lg text-[#F0E2D3]/60 leading-relaxed max-w-4xl">
+            <p className="pt-6 text-lg text-[#F0E2D3]/60 leading-relaxed max-w-4xl font-light">
               {answer}
             </p>
           </motion.div>
@@ -36,21 +46,102 @@ const FaqItem = ({ question, answer }: { question: string, answer: string }) => 
   );
 };
 
+// Carte d'expertise empilée : reste sticky et rétrécit quand la suivante la recouvre
+const StackCard = ({ i, total, progress, num, title, desc, points, bg, fg, accent }: {
+  i: number; total: number; progress: MotionValue<number>;
+  num: string; title: string; desc: string; points: string[];
+  bg: string; fg: string; accent: string;
+}) => {
+  const targetScale = 1 - (total - 1 - i) * 0.06;
+  const scale = useTransform(progress, [i / total, 1], [1, targetScale]);
+
+  return (
+    <div className="sticky top-0 h-screen flex items-center justify-center px-4 md:px-16" style={{ top: `${i * 24}px` }}>
+      <motion.div
+        style={{ scale, backgroundColor: bg, color: fg }}
+        className="relative w-full max-w-6xl h-[72vh] md:h-[70vh] rounded-[2rem] md:rounded-[2.5rem] p-8 md:p-16 flex flex-col justify-between overflow-hidden border border-white/10 will-change-transform"
+      >
+        <div
+          className="absolute -top-24 -right-24 w-96 h-96 rounded-full blur-3xl opacity-20 pointer-events-none"
+          style={{ backgroundColor: accent }}
+        />
+        <div className="flex items-start justify-between">
+          <span className="font-display italic text-6xl md:text-8xl font-light" style={{ color: accent }}>{num}</span>
+          <div className="w-12 h-12 md:w-14 md:h-14 rounded-full border flex items-center justify-center" style={{ borderColor: `${fg}30` }}>
+            <ArrowUpRight size={20} strokeWidth={1.25} />
+          </div>
+        </div>
+        <div className="grid md:grid-cols-2 gap-8 items-end">
+          <div>
+            <h3 className="font-display text-3xl md:text-5xl font-medium tracking-tight mb-5">{title}</h3>
+            <p className="text-base md:text-lg leading-relaxed font-light" style={{ color: `${fg}B0` }}>{desc}</p>
+          </div>
+          <ul className="flex flex-wrap gap-2 md:justify-end content-end">
+            {points.map(p => (
+              <li key={p} className="rounded-full px-4 py-2 text-[11px] uppercase tracking-[0.15em] font-medium border" style={{ borderColor: `${fg}25` }}>
+                {p}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
 export default function App() {
-  const { scrollY } = useScroll();
-  const y = useTransform(scrollY, [0, 500], [0, -150]);
-  const opacity = useTransform(scrollY, [0, 300], [1, 0]);
+  const lenisRef = useRef<Lenis | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // Smooth scroll inertiel (Lenis)
+  useEffect(() => {
+    const lenis = new Lenis({ lerp: 0.09 });
+    lenisRef.current = lenis;
+    let raf = requestAnimationFrame(function loop(time) {
+      lenis.raf(time);
+      raf = requestAnimationFrame(loop);
+    });
+    return () => {
+      cancelAnimationFrame(raf);
+      lenis.destroy();
+    };
+  }, []);
+
+  const scrollTo = (hash: string) => {
+    setMenuOpen(false);
+    lenisRef.current?.scrollTo(hash, { offset: 0, duration: 1.6 });
+  };
+
+  // Hero scrollytelling : la vidéo se "scrub" sur 300vh
+  const heroRef = useRef(null);
+  const { scrollYProgress: heroProgress } = useScroll({
+    target: heroRef,
+    offset: ['start start', 'end end'],
+  });
+  const heroTextY = useTransform(heroProgress, [0, 0.3], [0, -140]);
+  const heroTextOpacity = useTransform(heroProgress, [0.12, 0.28], [1, 0]);
+  const midTextOpacity = useTransform(heroProgress, [0.4, 0.52, 0.68, 0.8], [0, 1, 1, 0]);
+  const midTextY = useTransform(heroProgress, [0.4, 0.8], [60, -60]);
+  const videoScale = useTransform(heroProgress, [0, 1], [1, 1.12]);
+  const progressLine = useTransform(heroProgress, [0, 1], ['0%', '100%']);
 
   const footerRef = useRef(null);
   const { scrollYProgress: footerScrollProgress } = useScroll({
     target: footerRef,
-    offset: ["start end", "end end"]
+    offset: ['start end', 'end end'],
   });
-  const footerY = useTransform(footerScrollProgress, [0, 1], [400, 0]);
+  const footerY = useTransform(footerScrollProgress, [0, 1], [300, 0]);
+
+  // Cartes d'expertise empilées
+  const stackRef = useRef(null);
+  const { scrollYProgress: stackProgress } = useScroll({
+    target: stackRef,
+    offset: ['start start', 'end end'],
+  });
 
   const [activeCategory, setActiveCategory] = useState<'webdesign' | 'ia'>('webdesign');
   const [activeBlogCategory, setActiveBlogCategory] = useState<string>('Tous');
-  
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -58,12 +149,33 @@ export default function App() {
     message: ''
   });
 
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const handleFormSubmit = (e: FormEvent) => {
     e.preventDefault();
     const subject = encodeURIComponent(`Nouveau contact : ${formData.service} - de ${formData.name}`);
     const body = encodeURIComponent(`Nom: ${formData.name}\nEmail: ${formData.email}\nService: ${formData.service}\n\nMessage:\n${formData.message}`);
     window.location.href = `mailto:kareemmcclenny@gmail.com?subject=${subject}&body=${body}`;
   };
+
+  const services = [
+    {
+      num: '01', title: 'Marketing Digital',
+      desc: 'Croissance stratégique, SEO, acquisition payante et optimisation du taux de conversion adaptés à votre audience.',
+      points: ['SEO', 'Acquisition', 'CRO', 'Analytics'],
+      bg: '#181818', fg: '#F0E2D3', accent: '#B86443',
+    },
+    {
+      num: '02', title: 'Design UX/UI',
+      desc: 'Création d’interfaces immersives et centrées sur l’utilisateur. Du wireframing au prototypage haute-fidélité.',
+      points: ['Direction artistique', 'Prototypage', 'Design système', 'Motion'],
+      bg: '#B86443', fg: '#121212', accent: '#F0E2D3',
+    },
+    {
+      num: '03', title: 'Intégration IA',
+      desc: 'Mise en place d’automatisations intelligentes, d’outils basés sur les LLMs et d’infrastructures IA dédiées.',
+      points: ['Automatisations', 'LLMs', 'Chatbots', 'Workflows'],
+      bg: '#EDE2D0', fg: '#121212', accent: '#B86443',
+    },
+  ];
 
   const projects = {
     webdesign: [
@@ -79,7 +191,7 @@ export default function App() {
       {
         title: 'Complice',
         desc: 'Landing Page • Application de productivité & bien-être',
-        longDesc: 'Landing page premium pour l\'application Complice, conçue pour convertir des utilisateurs. Design épuré, dark mode, section features animées, témoignages et CTA stratégiques. Déployée sur Vercel avec gestion de CGU et mentions légales.',
+        longDesc: 'Landing page premium pour l\'application Complice, conçue pour convertir des utilisateurs. Design épuré, dark mode, section features animées, témoignages et CTA stratégiques. Déployée sur Vercel.',
         tags: ['Landing Page', 'React', 'Vercel'],
         year: '2026',
         img: '/projects/complice.png',
@@ -87,6 +199,24 @@ export default function App() {
       }
     ],
     ia: [
+      {
+        title: 'Complice — App',
+        desc: 'Application • Productivité & bien-être au quotidien',
+        longDesc: 'Application mobile de productivité inspirée du système d\'intentionnalité. Routine matinale, timer Pomodoro, intentions du jour, suivi d\'humeur et objectifs hebdomadaires. Construite avec React Native + IA pour les suggestions personnalisées.',
+        tags: ['App', 'Productivité', 'React Native', 'IA'],
+        year: '2026',
+        img: '/projects/complice-app.png',
+        link: 'https://complice-nu.vercel.app'
+      },
+      {
+        title: 'Forge — Tracker Sport',
+        desc: 'Application Mobile • Suivi d\'entraînement & performance',
+        longDesc: 'Forge est le module de tracking sportif de l\'écosystème Bushi. Suivi de séances en temps réel, progression des charges, RPE dial, coach vocal, smart progression par l\'IA et partage de performances. Interface dark inspirée des arts martiaux.',
+        tags: ['App', 'Sport', 'React', 'IA Coach'],
+        year: '2026',
+        img: '/projects/forge.png',
+        link: '#'
+      },
       {
         title: 'Bushido — App Sport',
         desc: 'Application Mobile • Coaching sportif inspiré du Bushido',
@@ -107,7 +237,6 @@ export default function App() {
       }
     ]
   };
-
 
   const blogPosts = [
     {
@@ -134,252 +263,240 @@ export default function App() {
   ];
 
   const blogCategories = ['Tous', 'Web Design', 'IA & Automatisation', 'Marketing Digital'];
-  
-  const filteredPosts = activeBlogCategory === 'Tous' 
-    ? blogPosts 
+
+  const filteredPosts = activeBlogCategory === 'Tous'
+    ? blogPosts
     : blogPosts.filter(post => post.category === activeBlogCategory);
 
-  return (
-    <div className="w-full min-h-screen text-[#F0E2D3] font-sans overflow-x-hidden bg-[#121212]">
-      {/* Initial Page Load Transition Overlay */}
-      <motion.div
-        initial={{ opacity: 1 }}
-        animate={{ opacity: 0 }}
-        transition={{ duration: 1.2, ease: "easeInOut", delay: 0.2 }}
-        className="fixed inset-0 z-[100] bg-[#121212] pointer-events-none"
-      />
+  const navLinks = [
+    ['#work', 'Projets'],
+    ['#manifeste', 'Manifeste'],
+    ['#journal', 'Journal'],
+    ['#expertise', 'Expertise'],
+    ['#contact', 'Contact'],
+  ] as const;
 
-      {/* Navigation */}
-      <nav className="fixed top-0 left-0 w-full flex items-center justify-between px-16 py-12 z-50">
-        <div className="flex items-center gap-4 cursor-pointer group">
-          <div className="flex flex-col justify-center">
-            <span className="text-[1.1rem] font-sans font-bold tracking-[0.15em] leading-none mb-1">MC CLENNY</span>
-            <span className="text-3xl font-signature font-normal tracking-normal leading-none opacity-90">Kareem</span>
-          </div>
+  return (
+    <div className="noise w-full min-h-screen text-[#F0E2D3] font-sans overflow-x-clip bg-[#121212]">
+      <Preloader />
+      <Cursor />
+
+      {/* Navigation — logo à gauche, pastille de verre flottante à droite */}
+      <nav className="fixed top-0 left-0 w-full flex items-center justify-between px-6 md:px-10 py-6 z-50 mix-blend-exclusion">
+        <button onClick={() => scrollTo('#top')} className="flex flex-col justify-center text-left group">
+          <span className="text-[0.95rem] font-sans font-bold tracking-[0.18em] leading-none mb-1">MC CLENNY</span>
+          <span className="text-2xl font-signature font-normal leading-none opacity-90 group-hover:text-[#B86443] transition-colors duration-500">Kareem</span>
+        </button>
+        <div className="hidden md:flex items-center gap-8 rounded-full border border-[#F0E2D3]/15 bg-[#121212]/40 backdrop-blur-xl px-8 py-3.5">
+          {navLinks.map(([href, label]) => (
+            <a
+              key={href}
+              href={href}
+              onClick={e => { e.preventDefault(); scrollTo(href); }}
+              className="relative text-[11px] font-semibold tracking-[0.2em] uppercase group"
+            >
+              {label}
+              <span className="absolute -bottom-1 left-0 w-full h-px bg-[#B86443] origin-right scale-x-0 group-hover:origin-left group-hover:scale-x-100 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]" />
+            </a>
+          ))}
         </div>
-        <div className="flex gap-12 items-center">
-          <a
-            href="#work"
-            className="text-sm font-semibold tracking-widest uppercase transition-colors duration-300 hover:text-[#B86443]"
-          >
-            PROJETS
-          </a>
-          <a
-            href="#journal"
-            className="text-sm font-semibold tracking-widest uppercase transition-colors duration-300 hover:text-[#B86443]"
-          >
-            JOURNAL
-          </a>
-          <a
-            href="#expertise"
-            className="text-sm font-semibold tracking-widest uppercase transition-colors duration-300 hover:text-[#B86443]"
-          >
-            EXPERTISE
-          </a>
-          <a
-            href="#contact"
-            className="text-sm font-semibold tracking-widest uppercase transition-colors duration-300 hover:text-[#B86443]"
-          >
-            CONTACT
-          </a>
-        </div>
+        {/* Burger mobile */}
+        <button
+          onClick={() => setMenuOpen(!menuOpen)}
+          className="md:hidden relative w-11 h-11 rounded-full border border-[#F0E2D3]/20 flex items-center justify-center"
+          aria-label="Menu"
+        >
+          <span className={`absolute w-4 h-px bg-[#F0E2D3] transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${menuOpen ? 'rotate-45' : '-translate-y-[3px]'}`} />
+          <span className={`absolute w-4 h-px bg-[#F0E2D3] transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${menuOpen ? '-rotate-45' : 'translate-y-[3px]'}`} />
+        </button>
       </nav>
 
-      {/* Hero Section */}
-      <section className="relative h-screen w-full flex flex-col justify-end items-center pb-32 px-10 overflow-hidden bg-transparent">
-        <video
-          autoPlay
-          loop
-          muted
-          playsInline
-          className="absolute inset-0 w-full h-full object-cover z-0 pointer-events-none [&::-webkit-media-controls]:hidden"
-          src="https://d8j0ntlcm91z4.cloudfront.net/user_3GG7Y16i1wZd6gC9IXwtKc5HQug/hf_20260717_115329_696a8707-668a-4222-8eb3-1e7f2fd27998.mp4"
-        />
-        <div
-          className="absolute inset-0 w-full h-full z-10"
-          style={{ background: 'linear-gradient(to bottom, transparent 0%, transparent 50%, #121212 100%)' }}
-        />
-        <motion.div
-          style={{ y, opacity }}
-          className="relative z-20 flex w-full flex-col items-center justify-center"
-        >
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: 'easeOut' }}
-            className="flex flex-col items-center text-center"
-          >
-          <h1 className="text-[7.5rem] leading-none font-bold tracking-tighter mb-6">
-            Design Digital & IA
-          </h1>
-
-          <p className="text-[1.35rem] text-[#F0E2D3] opacity-70 font-light max-w-3xl mb-12">
-            Création d'expériences web immersives et d'automatisations intelligentes.
-          </p>
-
-          <a href="#work" className="px-12 py-5 bg-[#F0E2D3] text-[#121212] rounded-full font-semibold text-lg tracking-wide transition-all duration-300 hover:bg-[#B86443] hover:text-[#F0E2D3] cursor-pointer">
-            Voir les Projets
-          </a>
-          </motion.div>
-        </motion.div>
-
-        {/* Social Links */}
-        <div className="absolute bottom-12 right-16 z-20 flex gap-8">
-          <a
-            href="https://linkedin.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm font-semibold tracking-widest uppercase transition-colors duration-300 hover:text-[#B86443]"
-          >
-            LINKEDIN
-          </a>
-          <a
-            href="https://behance.net"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm font-semibold tracking-widest uppercase transition-colors duration-300 hover:text-[#B86443]"
-          >
-            BEHANCE
-          </a>
-        </div>
-      </section>
-
-      {/* Infinite Marquee Section */}
-      <section className="py-24 border-y border-[#F0E2D3]/10 overflow-hidden flex whitespace-nowrap relative bg-[#121212]">
-        <motion.div
-          animate={{ x: ["0%", "-50%"] }}
-          transition={{ repeat: Infinity, ease: "linear", duration: 20 }}
-          className="flex whitespace-nowrap text-[6rem] font-bold tracking-tighter uppercase opacity-10"
-        >
-          <span className="mx-10">Marketing Digital</span>
-          <span>•</span>
-          <span className="mx-10">Design UX/UI</span>
-          <span>•</span>
-          <span className="mx-10">Intégration IA</span>
-          <span>•</span>
-          <span className="mx-10">Marketing Digital</span>
-          <span>•</span>
-          <span className="mx-10">Design UX/UI</span>
-          <span>•</span>
-          <span className="mx-10">Intégration IA</span>
-          <span>•</span>
-        </motion.div>
-      </section>
-
-      {/* About Section */}
-      <section className="py-48 px-16 max-w-7xl mx-auto">
-        <motion.h2 
-          initial={{ opacity: 0, y: 60 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-100px" }}
-          transition={{ duration: 1.4, ease: [0.22, 1, 0.36, 1] }}
-          className="text-[3.5rem] leading-[1.2] font-light max-w-5xl"
-        >
-          J'aide les marques à se développer en alliant un <span className="text-[#B86443] font-medium">web design créatif</span>, un <span className="text-[#B86443] font-medium">marketing digital</span> orienté données, et une <span className="text-[#B86443] font-medium">intelligence artificielle</span> de pointe.
-        </motion.h2>
-      </section>
-
-      {/* Expertise Section */}
-      <section id="expertise" className="py-32 px-16 bg-[#181818]">
-        <div className="max-w-7xl mx-auto">
+      {/* Menu mobile plein écran */}
+      <AnimatePresence>
+        {menuOpen && (
           <motion.div
             initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            className="flex flex-col md:flex-row justify-between items-start md:items-end mb-24 gap-8"
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5, ease: EASE }}
+            className="fixed inset-0 z-40 bg-[#0d0d0d]/90 backdrop-blur-2xl flex flex-col items-center justify-center gap-2 md:hidden"
           >
-            <h2 className="text-6xl font-bold tracking-tighter">Mon Expertise</h2>
-            <p className="text-xl opacity-60 max-w-md md:text-right">Une approche holistique de la croissance digitale, de la stratégie à l'exécution au pixel près.</p>
+            {navLinks.map(([href, label], i) => (
+              <span key={href} className="block overflow-hidden">
+                <motion.a
+                  href={href}
+                  initial={{ y: '110%' }}
+                  animate={{ y: '0%' }}
+                  exit={{ y: '110%' }}
+                  transition={{ duration: 0.7, delay: 0.06 * i, ease: EASE }}
+                  onClick={e => { e.preventDefault(); scrollTo(href); }}
+                  className="block font-display text-5xl font-light py-2 hover:text-[#B86443] transition-colors"
+                >
+                  {label}
+                </motion.a>
+              </span>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Hero — le personnage marche au rythme du scroll (vidéo scrubbée sur 300vh) */}
+      <section ref={heroRef} id="top" className="relative h-[300vh] w-full">
+        <div className="sticky top-0 h-screen w-full overflow-hidden flex flex-col justify-end items-center pb-24 md:pb-32 px-6 md:px-10">
+          <motion.div style={{ scale: videoScale }} className="absolute inset-0 z-0 will-change-transform">
+            <ScrubVideo
+              src={HERO_VIDEO}
+              progress={heroProgress}
+              className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+            />
+          </motion.div>
+          <div
+            className="absolute inset-0 z-10 pointer-events-none"
+            style={{ background: 'linear-gradient(to bottom, rgba(18,18,18,0.25) 0%, transparent 30%, transparent 55%, #121212 100%)' }}
+          />
+
+          {/* Texte principal — s'efface quand la marche commence */}
+          <motion.div
+            style={{ y: heroTextY, opacity: heroTextOpacity }}
+            className="relative z-20 flex w-full flex-col items-center justify-center text-center"
+          >
+            <h1 className="font-display font-light text-[clamp(3rem,9vw,7.5rem)] leading-[0.95] tracking-tight mb-6">
+              <LineReveal delay={1.9}>Design <em className="italic text-[#B86443]">Digital</em></LineReveal>
+              <LineReveal delay={2.05}>& Intelligence</LineReveal>
+            </h1>
+            <span className="block overflow-hidden mb-10">
+              <motion.p
+                initial={{ y: '110%' }}
+                animate={{ y: '0%' }}
+                transition={{ duration: 1, delay: 2.25, ease: EASE }}
+                className="text-[clamp(1rem,1.6vw,1.35rem)] text-[#F0E2D3]/70 font-light max-w-3xl"
+              >
+                Création d'expériences web immersives et d'automatisations intelligentes.
+              </motion.p>
+            </span>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.9, delay: 2.5, ease: EASE }}
+            >
+              <a
+                href="#work"
+                onClick={e => { e.preventDefault(); scrollTo('#work'); }}
+                className="group inline-flex items-center gap-4 pl-8 pr-2.5 py-2.5 bg-[#F0E2D3] text-[#121212] rounded-full font-semibold text-base tracking-wide transition-colors duration-500 hover:bg-[#B86443] hover:text-[#F0E2D3]"
+              >
+                Voir les Projets
+                <span className="w-10 h-10 rounded-full bg-[#121212]/10 flex items-center justify-center transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:scale-105">
+                  <ArrowUpRight size={18} strokeWidth={1.5} />
+                </span>
+              </a>
+            </motion.div>
           </motion.div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {/* Service 1 */}
-            <motion.div 
-              initial={{ opacity: 0, y: 50 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-50px" }}
-              transition={{ duration: 0.7, delay: 0.1, ease: "easeOut" }}
-              className="group p-10 border border-[#F0E2D3]/10 hover:border-[#B86443]/50 transition-colors duration-500 flex flex-col justify-between h-[450px]"
-            >
-              <div>
-                <span className="text-6xl text-[#B86443] mb-6 block opacity-80 group-hover:opacity-100 transition-opacity">01</span>
-                <h3 className="text-3xl font-bold mb-4">Marketing Digital</h3>
-                <p className="text-[#F0E2D3]/60 leading-relaxed text-lg">
-                  Croissance stratégique, SEO, acquisition payante et optimisation du taux de conversion adaptés à votre audience.
-                </p>
-              </div>
-              <div className="w-12 h-12 rounded-full border border-[#F0E2D3]/30 flex items-center justify-center group-hover:bg-[#B86443] group-hover:border-[#B86443] transition-all duration-300">
-                <ArrowUpRight className="group-hover:-rotate-12 transition-transform duration-300" size={20} />
-              </div>
-            </motion.div>
+          {/* Texte de mi-parcours */}
+          <motion.div
+            style={{ opacity: midTextOpacity, y: midTextY }}
+            className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none px-6"
+          >
+            <p className="font-display italic font-light text-[clamp(1.6rem,4vw,3.2rem)] text-[#F0E2D3] text-center max-w-3xl">
+              Chaque pas compte.<br />
+              <span className="not-italic text-[#B86443]">Chaque pixel aussi.</span>
+            </p>
+          </motion.div>
 
-            {/* Service 2 */}
-            <motion.div 
-              initial={{ opacity: 0, y: 50 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-50px" }}
-              transition={{ duration: 0.7, delay: 0.2, ease: "easeOut" }}
-              className="group p-10 border border-[#F0E2D3]/10 hover:border-[#B86443]/50 transition-colors duration-500 flex flex-col justify-between h-[450px]"
-            >
-              <div>
-                <span className="text-6xl text-[#B86443] mb-6 block opacity-80 group-hover:opacity-100 transition-opacity">02</span>
-                <h3 className="text-3xl font-bold mb-4">Design UX/UI</h3>
-                <p className="text-[#F0E2D3]/60 leading-relaxed text-lg">
-                  Création d'interfaces immersives et centrées sur l'utilisateur. Du wireframing au prototypage haute-fidélité.
-                </p>
-              </div>
-              <div className="w-12 h-12 rounded-full border border-[#F0E2D3]/30 flex items-center justify-center group-hover:bg-[#B86443] group-hover:border-[#B86443] transition-all duration-300">
-                <ArrowUpRight className="group-hover:-rotate-12 transition-transform duration-300" size={20} />
-              </div>
-            </motion.div>
-
-            {/* Service 3 */}
-            <motion.div 
-              initial={{ opacity: 0, y: 50 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-50px" }}
-              transition={{ duration: 0.7, delay: 0.3, ease: "easeOut" }}
-              className="group p-10 border border-[#F0E2D3]/10 hover:border-[#B86443]/50 transition-colors duration-500 flex flex-col justify-between h-[450px]"
-            >
-              <div>
-                <span className="text-6xl text-[#B86443] mb-6 block opacity-80 group-hover:opacity-100 transition-opacity">03</span>
-                <h3 className="text-3xl font-bold mb-4">Intégration IA</h3>
-                <p className="text-[#F0E2D3]/60 leading-relaxed text-lg">
-                  Mise en place d'automatisations intelligentes, d'outils basés sur les LLMs et d'infrastructures IA dédiées.
-                </p>
-              </div>
-              <div className="w-12 h-12 rounded-full border border-[#F0E2D3]/30 flex items-center justify-center group-hover:bg-[#B86443] group-hover:border-[#B86443] transition-all duration-300">
-                <ArrowUpRight className="group-hover:-rotate-12 transition-transform duration-300" size={20} />
-              </div>
-            </motion.div>
+          {/* Liens sociaux + progression de la marche */}
+          <div className="absolute bottom-10 right-6 md:right-10 z-20 hidden md:flex gap-8">
+            {[['https://linkedin.com', 'LinkedIn'], ['https://behance.net', 'Behance']].map(([href, label]) => (
+              <a key={label} href={href} target="_blank" rel="noopener noreferrer"
+                className="text-[11px] font-semibold tracking-[0.2em] uppercase text-[#F0E2D3]/60 hover:text-[#B86443] transition-colors duration-500">
+                {label}
+              </a>
+            ))}
+          </div>
+          <div className="absolute bottom-10 left-6 md:left-10 z-20 flex items-center gap-4">
+            <span className="text-[10px] uppercase tracking-[0.3em] font-medium text-[#F0E2D3]/50">La marche</span>
+            <div className="w-24 md:w-40 h-px bg-[#F0E2D3]/15 overflow-hidden">
+              <motion.div style={{ width: progressLine }} className="h-full bg-[#B86443]" />
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Selected Works (Tabs & Grid) */}
-      <section id="work" className="py-32 px-16 max-w-7xl mx-auto">
+      {/* Marquee réactif à la vélocité du scroll */}
+      <section className="py-16 md:py-20 border-y border-[#F0E2D3]/10 bg-[#121212] relative z-20">
+        <VelocityMarquee baseVelocity={1.5}>
+          {['Marketing Digital', 'Design UX/UI', 'Intégration IA'].map(t => (
+            <span key={t} className="mx-8 flex items-center gap-16 font-display text-[clamp(3rem,6vw,5.5rem)] font-light tracking-tight">
+              <span className="text-[#F0E2D3]/10 hover:text-[#B86443]/40 transition-colors duration-700">{t}</span>
+              <span className="text-[#B86443]/30 text-3xl">✦</span>
+            </span>
+          ))}
+        </VelocityMarquee>
+      </section>
+
+      {/* À propos — le texte s'allume mot par mot */}
+      <section className="py-32 md:py-48 px-6 md:px-16 max-w-7xl mx-auto">
+        <span className="rounded-full border border-[#F0E2D3]/15 px-4 py-1.5 text-[10px] uppercase tracking-[0.25em] font-medium text-[#F0E2D3]/60 inline-block mb-12">
+          À propos
+        </span>
+        <WordScrollReveal
+          className="font-display text-[clamp(1.8rem,4vw,3.5rem)] leading-[1.25] font-light max-w-5xl"
+          segments={[
+            { text: "J'aide les marques à se développer en alliant un" },
+            { text: 'web design créatif,', accent: true },
+            { text: 'un' },
+            { text: 'marketing digital', accent: true },
+            { text: 'orienté données, et une' },
+            { text: 'intelligence artificielle', accent: true },
+            { text: 'de pointe.' },
+          ]}
+        />
+      </section>
+
+      {/* Le livre qui s'ouvre */}
+      <BookSection />
+
+      {/* Expertise — cartes empilées façon deck */}
+      <section id="expertise" className="relative bg-[#121212]">
+        <div className="pt-32 pb-8 px-6 md:px-16 max-w-7xl mx-auto">
+          <span className="rounded-full border border-[#F0E2D3]/15 px-4 py-1.5 text-[10px] uppercase tracking-[0.25em] font-medium text-[#F0E2D3]/60 inline-block mb-8">
+            Expertise
+          </span>
+          <h2 className="font-display text-[clamp(2.5rem,6vw,5rem)] font-light tracking-tight">
+            <LineReveal>Trois métiers,</LineReveal>
+            <LineReveal delay={0.12}><em className="italic text-[#B86443]">une obsession.</em></LineReveal>
+          </h2>
+        </div>
+        <div ref={stackRef} className="relative" style={{ height: `${services.length * 100}vh` }}>
+          {services.map((s, i) => (
+            <StackCard key={s.num} i={i} total={services.length} progress={stackProgress} {...s} />
+          ))}
+        </div>
+      </section>
+
+      {/* Projets récents */}
+      <section id="work" className="py-32 px-6 md:px-16 max-w-7xl mx-auto">
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-24 gap-12">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-          >
-            <h2 className="text-5xl font-bold tracking-tighter mb-6">Projets Récents</h2>
-            <div className="w-24 h-1 bg-[#B86443]"></div>
-          </motion.div>
-          
+          <div>
+            <span className="rounded-full border border-[#F0E2D3]/15 px-4 py-1.5 text-[10px] uppercase tracking-[0.25em] font-medium text-[#F0E2D3]/60 inline-block mb-8">
+              Travaux sélectionnés
+            </span>
+            <h2 className="font-display text-[clamp(2.5rem,5vw,4rem)] font-light tracking-tight">
+              <LineReveal>Projets <em className="italic text-[#B86443]">récents</em></LineReveal>
+            </h2>
+          </div>
+
           <div className="flex flex-wrap gap-8 border-b border-[#F0E2D3]/10 pb-4">
             <button
               onClick={() => setActiveCategory('webdesign')}
-              className={`text-2xl font-bold tracking-tighter transition-all duration-300 ${activeCategory === 'webdesign' ? 'text-[#B86443]' : 'text-[#F0E2D3]/30 hover:text-[#F0E2D3]'}`}
+              className={`text-xl md:text-2xl font-display font-medium tracking-tight transition-colors duration-500 ${activeCategory === 'webdesign' ? 'text-[#B86443]' : 'text-[#F0E2D3]/30 hover:text-[#F0E2D3]'}`}
             >
-              Webdesign & UI
+              Webdesign & Landing Pages
             </button>
             <button
               onClick={() => setActiveCategory('ia')}
-              className={`text-2xl font-bold tracking-tighter transition-all duration-300 ${activeCategory === 'ia' ? 'text-[#B86443]' : 'text-[#F0E2D3]/30 hover:text-[#F0E2D3]'}`}
+              className={`text-xl md:text-2xl font-display font-medium tracking-tight transition-colors duration-500 ${activeCategory === 'ia' ? 'text-[#B86443]' : 'text-[#F0E2D3]/30 hover:text-[#F0E2D3]'}`}
             >
-              Créations IA
+              Apps & Créations IA
             </button>
           </div>
         </div>
@@ -387,48 +504,53 @@ export default function App() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-24">
           <AnimatePresence mode="wait">
             {projects[activeCategory].map((project, idx) => (
-              <motion.a 
+              <motion.a
                 key={project.title}
                 href={project.link !== '#' ? project.link : undefined}
                 target={project.link !== '#' ? '_blank' : undefined}
                 rel="noopener noreferrer"
-                initial={{ opacity: 0, y: 50 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-50px" }}
+                initial="hidden"
+                whileInView="visible"
+                variants={{ hidden: { opacity: 0, y: 60 }, visible: { opacity: 1, y: 0 } }}
+                viewport={{ once: true, margin: '-50px' }}
                 exit={{ opacity: 0, y: -40 }}
-                transition={{ duration: 0.7, delay: idx * 0.15, ease: 'easeOut' }}
+                transition={{ duration: 0.9, delay: idx * 0.12, ease: EASE }}
                 className={`group cursor-pointer block ${idx % 2 !== 0 ? 'md:mt-32' : ''}`}
               >
-                {/* Image */}
-                <div className="w-full aspect-[4/3] bg-[#1a1a1a] overflow-hidden mb-8 relative">
-                  <div className="absolute inset-0 bg-[#B86443]/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-10 mix-blend-overlay"></div>
-                  {/* Year badge */}
-                  <span className="absolute top-4 left-4 z-20 text-xs font-mono tracking-widest bg-[#121212]/80 text-[#B86443] px-3 py-1 border border-[#B86443]/40">{project.year}</span>
-                  <img 
-                    src={project.img} 
-                    alt={project.title} 
-                    className="w-full h-full object-cover group-hover:scale-105 transition-all duration-700" 
-                  />
+                {/* Image — révélation par clip-path + zoom lent */}
+                <div className="w-full aspect-[4/3] bg-[#1a1a1a] overflow-hidden mb-8 relative rounded-2xl border border-[#F0E2D3]/8">
+                  <motion.div
+                    variants={{ hidden: { clipPath: 'inset(100% 0% 0% 0%)' }, visible: { clipPath: 'inset(0% 0% 0% 0%)' } }}
+                    transition={{ duration: 1.2, ease: EASE }}
+                    className="absolute inset-0"
+                  >
+                    <motion.img
+                      src={project.img}
+                      alt={project.title}
+                      variants={{ hidden: { scale: 1.25 }, visible: { scale: 1 } }}
+                      transition={{ duration: 1.4, ease: EASE }}
+                      className="w-full h-full object-cover group-hover:scale-[1.06] transition-transform duration-[1.2s] ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform"
+                    />
+                  </motion.div>
+                  <div className="absolute inset-0 bg-[#B86443]/20 opacity-0 group-hover:opacity-100 transition-opacity duration-700 z-10 mix-blend-overlay pointer-events-none" />
+                  <span className="absolute top-4 left-4 z-20 text-[10px] font-mono tracking-[0.2em] bg-[#121212]/70 backdrop-blur-md text-[#B86443] px-3 py-1.5 rounded-full border border-[#B86443]/30">{project.year}</span>
                 </div>
 
-                {/* Title + arrow */}
                 <div className="flex justify-between items-start mb-4">
                   <div>
-                    <h3 className="text-3xl font-semibold mb-2">{project.title}</h3>
-                    <span className="text-[#F0E2D3]/50 font-mono text-sm uppercase tracking-widest">{project.desc}</span>
+                    <h3 className="font-display text-2xl md:text-3xl font-medium mb-2 group-hover:text-[#B86443] transition-colors duration-500">{project.title}</h3>
+                    <span className="text-[#F0E2D3]/50 font-mono text-xs uppercase tracking-[0.15em]">{project.desc}</span>
                   </div>
-                  <div className="w-12 h-12 rounded-full border border-[#F0E2D3]/30 flex items-center justify-center group-hover:bg-[#B86443] group-hover:border-[#B86443] transition-all duration-300 -rotate-45 group-hover:rotate-0 flex-shrink-0 ml-4">
-                    <ArrowUpRight size={20} />
+                  <div className="w-12 h-12 rounded-full border border-[#F0E2D3]/20 flex items-center justify-center group-hover:bg-[#B86443] group-hover:border-[#B86443] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] -rotate-45 group-hover:rotate-0 flex-shrink-0 ml-4">
+                    <ArrowUpRight size={20} strokeWidth={1.25} />
                   </div>
                 </div>
 
-                {/* Long description */}
-                <p className="text-[#F0E2D3]/60 text-sm leading-relaxed mb-5 max-w-lg">{project.longDesc}</p>
+                <p className="text-[#F0E2D3]/60 text-sm leading-relaxed mb-5 max-w-lg font-light">{project.longDesc}</p>
 
-                {/* Tags */}
                 <div className="flex flex-wrap gap-2">
                   {project.tags.map(tag => (
-                    <span key={tag} className="text-xs font-mono tracking-widest uppercase px-3 py-1 border border-[#F0E2D3]/15 text-[#F0E2D3]/50 hover:border-[#B86443]/60 hover:text-[#B86443] transition-colors duration-200">
+                    <span key={tag} className="text-[10px] font-mono tracking-[0.15em] uppercase px-3.5 py-1.5 rounded-full border border-[#F0E2D3]/15 text-[#F0E2D3]/50 group-hover:border-[#B86443]/40 transition-colors duration-500">
                       {tag}
                     </span>
                   ))}
@@ -437,27 +559,26 @@ export default function App() {
             ))}
           </AnimatePresence>
         </div>
-
       </section>
 
-      {/* Journal / Blog Section */}
-      <section id="journal" className="py-32 px-16 max-w-7xl mx-auto border-t border-[#F0E2D3]/10">
+      {/* Journal */}
+      <section id="journal" className="py-32 px-6 md:px-16 max-w-7xl mx-auto border-t border-[#F0E2D3]/10">
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-24 gap-12">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-          >
-            <h2 className="text-5xl font-bold tracking-tighter mb-6">Journal</h2>
-            <div className="w-24 h-1 bg-[#B86443]"></div>
-          </motion.div>
-          
+          <div>
+            <span className="rounded-full border border-[#F0E2D3]/15 px-4 py-1.5 text-[10px] uppercase tracking-[0.25em] font-medium text-[#F0E2D3]/60 inline-block mb-8">
+              Réflexions
+            </span>
+            <h2 className="font-display text-[clamp(2.5rem,5vw,4rem)] font-light tracking-tight">
+              <LineReveal>Le <em className="italic text-[#B86443]">journal</em></LineReveal>
+            </h2>
+          </div>
+
           <div className="flex flex-wrap gap-6 border-b border-[#F0E2D3]/10 pb-4">
             {blogCategories.map(category => (
               <button
                 key={category}
                 onClick={() => setActiveBlogCategory(category)}
-                className={`text-lg font-semibold tracking-tight transition-all duration-300 ${activeBlogCategory === category ? 'text-[#B86443]' : 'text-[#F0E2D3]/40 hover:text-[#F0E2D3]'}`}
+                className={`text-base md:text-lg font-medium tracking-tight transition-colors duration-500 ${activeBlogCategory === category ? 'text-[#B86443]' : 'text-[#F0E2D3]/40 hover:text-[#F0E2D3]'}`}
               >
                 {category}
               </button>
@@ -468,33 +589,33 @@ export default function App() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <AnimatePresence mode="wait">
             {filteredPosts.map((post, idx) => (
-              <motion.div 
+              <motion.div
                 key={post.title}
-                initial={{ opacity: 0, y: 30 }}
+                initial={{ opacity: 0, y: 40 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-50px" }}
+                viewport={{ once: true, margin: '-50px' }}
                 exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.5, delay: idx * 0.1, ease: 'easeOut' }}
+                transition={{ duration: 0.7, delay: idx * 0.1, ease: EASE }}
                 className="group cursor-pointer flex flex-col"
               >
-                <div className="w-full aspect-[4/3] bg-[#1a1a1a] overflow-hidden mb-6 relative rounded-sm">
-                  <div className="absolute inset-0 bg-[#121212]/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10 flex items-center justify-center">
-                    <div className="w-12 h-12 rounded-full bg-[#B86443] flex items-center justify-center text-[#121212] -rotate-45 group-hover:rotate-0 transition-transform duration-300">
-                      <ArrowUpRight size={24} />
+                <div className="w-full aspect-[4/3] bg-[#1a1a1a] overflow-hidden mb-6 relative rounded-2xl border border-[#F0E2D3]/8">
+                  <div className="absolute inset-0 bg-[#121212]/40 opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-10 flex items-center justify-center">
+                    <div className="w-12 h-12 rounded-full bg-[#B86443] flex items-center justify-center text-[#121212] -rotate-45 group-hover:rotate-0 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]">
+                      <ArrowUpRight size={22} strokeWidth={1.5} />
                     </div>
                   </div>
-                  <img src={post.img} alt={post.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                  <img src={post.img} alt={post.title} className="w-full h-full object-cover group-hover:scale-[1.06] transition-transform duration-[1.2s] ease-[cubic-bezier(0.32,0.72,0,1)]" />
                 </div>
-                
-                <div className="flex items-center gap-4 text-xs font-mono uppercase tracking-widest text-[#F0E2D3]/50 mb-3">
+
+                <div className="flex items-center gap-4 text-[10px] font-mono uppercase tracking-[0.2em] text-[#F0E2D3]/50 mb-3">
                   <span className="text-[#B86443] font-semibold">{post.category}</span>
                   <span>•</span>
                   <span>{post.readTime}</span>
                 </div>
-                
-                <h3 className="text-2xl font-bold leading-tight group-hover:text-[#B86443] transition-colors">{post.title}</h3>
-                
-                <div className="mt-auto pt-6 text-sm font-semibold opacity-60">
+
+                <h3 className="font-display text-xl md:text-2xl font-medium leading-tight group-hover:text-[#B86443] transition-colors duration-500">{post.title}</h3>
+
+                <div className="mt-auto pt-6 text-sm font-medium opacity-50">
                   {post.date}
                 </div>
               </motion.div>
@@ -503,175 +624,184 @@ export default function App() {
         </div>
       </section>
 
-      {/* FAQ Section */}
-      <section className="py-32 px-16 max-w-7xl mx-auto">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="mb-24 flex flex-col items-center text-center"
-        >
-          <h2 className="text-5xl font-bold tracking-tighter mb-6">Questions Fréquentes</h2>
-          <div className="w-24 h-1 bg-[#B86443]"></div>
-        </motion.div>
+      {/* FAQ */}
+      <section className="py-32 px-6 md:px-16 max-w-7xl mx-auto">
+        <div className="mb-24 flex flex-col items-center text-center">
+          <span className="rounded-full border border-[#F0E2D3]/15 px-4 py-1.5 text-[10px] uppercase tracking-[0.25em] font-medium text-[#F0E2D3]/60 inline-block mb-8">
+            FAQ
+          </span>
+          <h2 className="font-display text-[clamp(2.5rem,5vw,4rem)] font-light tracking-tight">
+            <LineReveal>Questions <em className="italic text-[#B86443]">fréquentes</em></LineReveal>
+          </h2>
+        </div>
 
         <div className="max-w-4xl mx-auto">
-          <FaqItem 
-            question="Quels types de projets acceptez-vous ?" 
-            answer="Je travaille avec des startups, des agences et des entreprises de toutes tailles pour concevoir des expériences web sur mesure (sites vitrines, e-commerce, portfolios) et intégrer des solutions IA (automatisations, bots, optimisation de flux de travail)." 
+          <FaqItem
+            question="Quels types de projets acceptez-vous ?"
+            answer="Je travaille avec des startups, des agences et des entreprises de toutes tailles pour concevoir des expériences web sur mesure (sites vitrines, e-commerce, portfolios) et intégrer des solutions IA (automatisations, bots, optimisation de flux de travail)."
           />
-          <FaqItem 
-            question="Combien de temps faut-il pour créer un site web ?" 
-            answer="Le délai dépend de la complexité du projet. Une landing page ou un site vitrine peut prendre entre 2 et 4 semaines, tandis qu'une application sur mesure ou une plateforme e-commerce complexe peut nécessiter 2 à 3 mois." 
+          <FaqItem
+            question="Combien de temps faut-il pour créer un site web ?"
+            answer="Le délai dépend de la complexité du projet. Une landing page ou un site vitrine peut prendre entre 2 et 4 semaines, tandis qu'une application sur mesure ou une plateforme e-commerce complexe peut nécessiter 2 à 3 mois."
           />
-          <FaqItem 
-            question="Comment l'IA peut-elle aider mon entreprise ?" 
-            answer="L'IA peut transformer votre entreprise de multiples façons : automatisation des tâches répétitives (emails, génération de rapports), création de chatbots pour le service client, ou encore génération de contenu intelligent. L'objectif est de vous faire gagner du temps et de la valeur." 
+          <FaqItem
+            question="Comment l'IA peut-elle aider mon entreprise ?"
+            answer="L'IA peut transformer votre entreprise de multiples façons : automatisation des tâches répétitives (emails, génération de rapports), création de chatbots pour le service client, ou encore génération de contenu intelligent. L'objectif est de vous faire gagner du temps et de la valeur."
           />
-          <FaqItem 
-            question="Faites-vous aussi du SEO et du marketing digital ?" 
-            answer="Absolument. Mon approche est holistique : un beau site web ne sert à rien s'il n'est pas vu. J'intègre les meilleures pratiques SEO dès la conception et je peux vous accompagner sur vos stratégies d'acquisition et de conversion." 
+          <FaqItem
+            question="Faites-vous aussi du SEO et du marketing digital ?"
+            answer="Absolument. Mon approche est holistique : un beau site web ne sert à rien s'il n'est pas vu. J'intègre les meilleures pratiques SEO dès la conception et je peux vous accompagner sur vos stratégies d'acquisition et de conversion."
           />
         </div>
       </section>
 
-      {/* Big Footer / Contact CTA & Form */}
-      <footer ref={footerRef} id="contact" className="pt-32 pb-16 px-8 md:px-16 bg-[#B86443] text-[#121212] overflow-hidden relative">
+      {/* Footer / Contact */}
+      <footer ref={footerRef} id="contact" className="pt-32 pb-16 px-6 md:px-16 bg-[#B86443] text-[#121212] overflow-hidden relative">
         <motion.div style={{ y: footerY }} className="w-full relative z-10">
           <div className="max-w-7xl mx-auto flex flex-col lg:flex-row justify-between gap-24">
-          
-          {/* Left Col - Contact Info */}
-          <div className="flex-1 flex flex-col justify-between">
-            <motion.div
-              initial={{ opacity: 0, y: 50 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.8 }}
-            >
-              <h2 className="text-[5rem] lg:text-[7.5rem] leading-[0.9] font-bold tracking-tighter mb-12">
-                Travaillons<br />ensemble.
-              </h2>
-              <div className="flex flex-col gap-6 text-3xl font-medium tracking-tight">
-                <a href="mailto:kareemmcclenny@gmail.com" className="hover:opacity-60 transition-opacity flex items-center gap-4">
-                  <ArrowUpRight size={32} />
-                  kareemmcclenny@gmail.com
-                </a>
-                <a href="tel:0749808698" className="hover:opacity-60 transition-opacity flex items-center gap-4">
-                  <ArrowUpRight size={32} />
-                  07 49 80 86 98
-                </a>
-              </div>
-            </motion.div>
-            
-            <div className="hidden lg:flex flex-col text-left mt-32">
-              <span className="text-sm font-semibold opacity-70 uppercase tracking-widest mb-6">Liens Rapides</span>
-              <div className="flex flex-col gap-4 mb-8">
-                <a href="#mentions-legales" className="flex items-center gap-3 text-sm font-semibold uppercase tracking-widest opacity-60 hover:opacity-100 transition-opacity">
-                  <FileText size={16} /> Mentions Légales
-                </a>
-                <a href="#confidentialite" className="flex items-center gap-3 text-sm font-semibold uppercase tracking-widest opacity-60 hover:opacity-100 transition-opacity">
-                  <Shield size={16} /> Politique de Confidentialité
-                </a>
-              </div>
-              <span className="text-sm font-semibold opacity-70 uppercase tracking-widest">© 2026 Tous droits réservés</span>
-            </div>
-          </div>
 
-          {/* Right Col - Form */}
-          <motion.div 
-            initial={{ opacity: 0, x: 50 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-            className="flex-1 w-full max-w-xl lg:ml-auto"
-          >
-            <form onSubmit={handleFormSubmit} className="flex flex-col gap-10">
-              <div className="relative">
-                <label className="text-xs font-bold uppercase tracking-widest opacity-60 mb-2 block">Quel est votre nom ?</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.name}
-                  onChange={e => setFormData({...formData, name: e.target.value})}
-                  placeholder="Jean Dupont"
-                  className="w-full bg-transparent border-b-2 border-[#121212]/30 py-3 text-2xl font-medium placeholder:text-[#121212]/30 focus:border-[#121212] outline-none transition-colors"
-                />
-              </div>
-
-              <div className="relative">
-                <label className="text-xs font-bold uppercase tracking-widest opacity-60 mb-2 block">Votre adresse email</label>
-                <input
-                  type="email"
-                  required
-                  value={formData.email}
-                  onChange={e => setFormData({...formData, email: e.target.value})}
-                  placeholder="jean@exemple.com"
-                  className="w-full bg-transparent border-b-2 border-[#121212]/30 py-3 text-2xl font-medium placeholder:text-[#121212]/30 focus:border-[#121212] outline-none transition-colors"
-                />
-              </div>
-
-              <div className="relative">
-                <label className="text-xs font-bold uppercase tracking-widest opacity-60 mb-2 block">Comment puis-je vous aider ?</label>
-                <div className="relative">
-                  <select
-                    required
-                    value={formData.service}
-                    onChange={e => setFormData({...formData, service: e.target.value})}
-                    className="w-full bg-transparent border-b-2 border-[#121212]/30 py-3 text-2xl font-medium focus:border-[#121212] outline-none transition-colors appearance-none cursor-pointer rounded-none"
-                  >
-                    <option value="Webdesign & UX/UI">Webdesign & UX/UI</option>
-                    <option value="Intelligence Artificielle">Solutions IA (Apps, Workflows)</option>
-                    <option value="Marketing Digital">Marketing Digital & Stratégie</option>
-                    <option value="Autre demande">Autre demande</option>
-                  </select>
-                  <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none opacity-50" size={24} />
+            {/* Colonne gauche */}
+            <div className="flex-1 flex flex-col justify-between">
+              <div>
+                <h2 className="font-display font-light text-[clamp(3.5rem,8vw,7.5rem)] leading-[0.95] tracking-tight mb-12">
+                  <LineReveal>Travaillons</LineReveal>
+                  <LineReveal delay={0.12}><em className="italic">ensemble.</em></LineReveal>
+                </h2>
+                <div className="flex flex-col gap-6 text-xl md:text-3xl font-medium tracking-tight">
+                  <a href="mailto:kareemmcclenny@gmail.com" className="group hover:opacity-60 transition-opacity duration-500 flex items-center gap-4">
+                    <span className="w-11 h-11 rounded-full border border-[#121212]/25 flex items-center justify-center shrink-0 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5">
+                      <ArrowUpRight size={22} strokeWidth={1.5} />
+                    </span>
+                    kareemmcclenny@gmail.com
+                  </a>
+                  <a href="tel:0749808698" className="group hover:opacity-60 transition-opacity duration-500 flex items-center gap-4">
+                    <span className="w-11 h-11 rounded-full border border-[#121212]/25 flex items-center justify-center shrink-0 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5">
+                      <ArrowUpRight size={22} strokeWidth={1.5} />
+                    </span>
+                    07 49 80 86 98
+                  </a>
                 </div>
               </div>
 
-              <div className="relative">
-                <label className="text-xs font-bold uppercase tracking-widest opacity-60 mb-2 block">Parlez-moi de votre projet</label>
-                <textarea
-                  required
-                  rows={4}
-                  value={formData.message}
-                  onChange={e => setFormData({...formData, message: e.target.value})}
-                  placeholder="Bonjour, je cherche un expert pour..."
-                  className="w-full bg-transparent border-b-2 border-[#121212]/30 py-3 text-xl font-medium placeholder:text-[#121212]/30 focus:border-[#121212] outline-none transition-colors resize-none"
-                />
+              <div className="hidden lg:flex flex-col text-left mt-32">
+                <span className="text-xs font-semibold opacity-70 uppercase tracking-[0.2em] mb-6">Liens Rapides</span>
+                <div className="flex flex-col gap-4 mb-8">
+                  <a href="#mentions-legales" className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.2em] opacity-60 hover:opacity-100 transition-opacity duration-500">
+                    <FileText size={15} strokeWidth={1.5} /> Mentions Légales
+                  </a>
+                  <a href="#confidentialite" className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.2em] opacity-60 hover:opacity-100 transition-opacity duration-500">
+                    <Shield size={15} strokeWidth={1.5} /> Politique de Confidentialité
+                  </a>
+                </div>
+                <span className="text-xs font-semibold opacity-70 uppercase tracking-[0.2em]">© 2026 Tous droits réservés</span>
               </div>
+            </div>
 
-              <button type="submit" className="group self-start mt-4 px-12 py-5 bg-[#121212] text-[#F0E2D3] rounded-full font-bold tracking-widest uppercase text-sm transition-all duration-300 hover:bg-[#F0E2D3] hover:text-[#121212] flex items-center gap-4">
-                Envoyer le message
-                <ArrowUpRight className="group-hover:rotate-45 transition-transform duration-300" size={18} />
-              </button>
-            </form>
-          </motion.div>
-        </div>
+            {/* Colonne droite - Formulaire */}
+            <motion.div
+              initial={{ opacity: 0, y: 60 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-100px' }}
+              transition={{ duration: 1, delay: 0.2, ease: EASE }}
+              className="flex-1 w-full max-w-xl lg:ml-auto"
+            >
+              <form onSubmit={handleFormSubmit} className="flex flex-col gap-10">
+                <div className="relative">
+                  <label className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-60 mb-2 block">Quel est votre nom ?</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.name}
+                    onChange={e => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Jean Dupont"
+                    className="w-full bg-transparent border-b-2 border-[#121212]/30 py-3 text-2xl font-medium placeholder:text-[#121212]/30 focus:border-[#121212] outline-none transition-colors duration-500"
+                  />
+                </div>
 
-        {/* Mobile Footer Bottom */}
-        <div className="mt-32 pt-8 border-t border-[#121212]/20 flex flex-col items-center gap-6 lg:hidden relative z-10">
-          <div className="flex flex-col text-center">
-            <span className="text-xs font-semibold opacity-70 uppercase tracking-widest">© 2026 Tous droits réservés</span>
+                <div className="relative">
+                  <label className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-60 mb-2 block">Votre adresse email</label>
+                  <input
+                    type="email"
+                    required
+                    value={formData.email}
+                    onChange={e => setFormData({ ...formData, email: e.target.value })}
+                    placeholder="jean@exemple.com"
+                    className="w-full bg-transparent border-b-2 border-[#121212]/30 py-3 text-2xl font-medium placeholder:text-[#121212]/30 focus:border-[#121212] outline-none transition-colors duration-500"
+                  />
+                </div>
+
+                <div className="relative">
+                  <label className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-60 mb-2 block">Comment puis-je vous aider ?</label>
+                  <div className="relative">
+                    <select
+                      required
+                      value={formData.service}
+                      onChange={e => setFormData({ ...formData, service: e.target.value })}
+                      className="w-full bg-transparent border-b-2 border-[#121212]/30 py-3 text-2xl font-medium focus:border-[#121212] outline-none transition-colors duration-500 appearance-none cursor-pointer rounded-none"
+                    >
+                      <option value="Webdesign & UX/UI">Webdesign & UX/UI</option>
+                      <option value="Intelligence Artificielle">Solutions IA (Apps, Workflows)</option>
+                      <option value="Marketing Digital">Marketing Digital & Stratégie</option>
+                      <option value="Autre demande">Autre demande</option>
+                    </select>
+                    <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none opacity-50" size={24} strokeWidth={1.5} />
+                  </div>
+                </div>
+
+                <div className="relative">
+                  <label className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-60 mb-2 block">Parlez-moi de votre projet</label>
+                  <textarea
+                    required
+                    rows={4}
+                    value={formData.message}
+                    onChange={e => setFormData({ ...formData, message: e.target.value })}
+                    placeholder="Bonjour, je cherche un expert pour..."
+                    className="w-full bg-transparent border-b-2 border-[#121212]/30 py-3 text-xl font-medium placeholder:text-[#121212]/30 focus:border-[#121212] outline-none transition-colors duration-500 resize-none"
+                  />
+                </div>
+
+                <button type="submit" className="group self-start mt-4 pl-10 pr-2.5 py-2.5 bg-[#121212] text-[#F0E2D3] rounded-full font-bold tracking-[0.15em] uppercase text-sm transition-colors duration-500 hover:bg-[#F0E2D3] hover:text-[#121212] flex items-center gap-4 active:scale-[0.98]">
+                  Envoyer le message
+                  <span className="w-10 h-10 rounded-full bg-[#F0E2D3]/10 group-hover:bg-[#121212]/10 flex items-center justify-center transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5">
+                    <ArrowUpRight size={17} strokeWidth={1.5} />
+                  </span>
+                </button>
+              </form>
+            </motion.div>
           </div>
-          <div className="flex gap-8">
-            <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" className="font-bold uppercase text-sm tracking-widest hover:opacity-60 transition-opacity">LinkedIn</a>
-            <a href="https://behance.net" target="_blank" rel="noopener noreferrer" className="font-bold uppercase text-sm tracking-widest hover:opacity-60 transition-opacity">Behance</a>
+
+          {/* Signature géante */}
+          <div className="max-w-7xl mx-auto mt-24 pt-8 border-t border-[#121212]/15 flex justify-center overflow-hidden">
+            <motion.span
+              initial={{ opacity: 0, y: 40 }}
+              whileInView={{ opacity: 0.9, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 1.2, ease: EASE }}
+              className="font-signature text-[clamp(4rem,12vw,10rem)] leading-none -rotate-2 select-none"
+            >
+              Kareem
+            </motion.span>
           </div>
-          <div className="flex flex-col gap-4 mt-2 w-full text-left">
-            <span className="text-xs font-semibold opacity-70 uppercase tracking-widest text-center mb-2">Liens Rapides</span>
+
+          {/* Footer mobile */}
+          <div className="mt-16 pt-8 border-t border-[#121212]/20 flex flex-col items-center gap-6 lg:hidden relative z-10">
+            <span className="text-[10px] font-semibold opacity-70 uppercase tracking-[0.2em]">© 2026 Tous droits réservés</span>
+            <div className="flex gap-8">
+              <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" className="font-bold uppercase text-xs tracking-[0.2em] hover:opacity-60 transition-opacity">LinkedIn</a>
+              <a href="https://behance.net" target="_blank" rel="noopener noreferrer" className="font-bold uppercase text-xs tracking-[0.2em] hover:opacity-60 transition-opacity">Behance</a>
+            </div>
             <div className="flex flex-col sm:flex-row justify-center gap-6">
-              <a href="#mentions-legales" className="flex items-center justify-center gap-2 text-xs font-semibold uppercase tracking-widest opacity-60 hover:opacity-100 transition-opacity">
-                <FileText size={14} /> Mentions Légales
+              <a href="#mentions-legales" className="flex items-center justify-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] opacity-60 hover:opacity-100 transition-opacity">
+                <FileText size={13} strokeWidth={1.5} /> Mentions Légales
               </a>
-              <a href="#confidentialite" className="flex items-center justify-center gap-2 text-xs font-semibold uppercase tracking-widest opacity-60 hover:opacity-100 transition-opacity">
-                <Shield size={14} /> Confidentialité
+              <a href="#confidentialite" className="flex items-center justify-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] opacity-60 hover:opacity-100 transition-opacity">
+                <Shield size={13} strokeWidth={1.5} /> Confidentialité
               </a>
             </div>
           </div>
-        </div>
         </motion.div>
       </footer>
-      
+
       <Chatbot />
     </div>
   );
