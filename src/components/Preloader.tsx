@@ -20,7 +20,13 @@ export default function Preloader() {
       else setTimeout(() => setDone(true), 250);
     };
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    // Filet de sécurité : si l'onglet est en arrière-plan, rAF est throttlé
+    // et le compteur peut se figer — on force la fin après un délai dur.
+    const failsafe = setTimeout(() => { setCount(100); setDone(true); }, 4000);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(failsafe);
+    };
   }, []);
 
   return (

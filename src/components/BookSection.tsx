@@ -122,8 +122,8 @@ export default function BookSection() {
                   <span className="text-[10px] sm:text-[11px] uppercase tracking-[0.3em] font-sans font-bold text-[#B86443]">En chiffres</span>
                   <div className="space-y-[7%]">
                     {[
-                      ['3+', 'années de design digital'],
-                      ['12', 'projets web & IA livrés'],
+                      ['★', 'Expert Marketing Digital'],
+                      ['01', 'studio créatif fondé — Framo, Nancy'],
                       ['∞', 'curiosité pour la suite'],
                     ].map(([n, label]) => (
                       <div key={label} className="flex items-baseline gap-4 border-b border-[#1c120c]/10 pb-[4%]">
