@@ -35,13 +35,13 @@ export default function BookSection() {
 
   return (
     <section ref={containerRef} className="relative h-[420vh] bg-[#121212]" id="manifeste">
-      <div className="sticky top-0 h-screen w-full flex flex-col items-center justify-center overflow-hidden">
+      <div className="sticky top-0 h-[100svh] w-full flex flex-col items-center justify-center overflow-hidden">
 
         {/* Titre d'intro, disparaît quand le livre s'ouvre */}
         {showTitle && (
           <motion.div
             style={{ opacity: titleOpacity, y: titleY }}
-            className="absolute top-[10vh] md:top-[12vh] z-10 flex flex-col items-center text-center px-6 pointer-events-none"
+            className="absolute top-[10%] md:top-[12%] z-10 flex flex-col items-center text-center px-6 pointer-events-none"
           >
             <span className="rounded-full border border-[#B86443]/30 bg-[#B86443]/5 px-5 py-2 text-[11px] uppercase tracking-[0.3em] font-semibold text-[#B86443] mb-5">
               Le Manifeste

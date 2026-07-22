@@ -532,7 +532,7 @@ export default function App() {
 
   return (
     <MotionConfig reducedMotion="user">
-    <div className="noise w-full min-h-screen text-[#F0E2D3] font-sans overflow-x-clip bg-[#121212]">
+    <div className="noise w-full min-h-[100dvh] text-[#F0E2D3] font-sans overflow-x-clip bg-[#121212]">
       {/* Lien d'évitement pour la navigation clavier */}
       <a
         href="#work"
@@ -618,7 +618,7 @@ export default function App() {
 
       {/* Hero — le personnage marche au rythme du scroll (vidéo scrubbée sur 300vh) */}
       <section ref={heroRef} id="top" className="relative h-[300vh] w-full">
-        <div className="sticky top-0 h-screen w-full overflow-hidden flex flex-col justify-end items-center pb-24 md:pb-32 px-6 md:px-10">
+        <div className="sticky top-0 h-[100svh] w-full overflow-hidden flex flex-col justify-end items-center pb-24 md:pb-32 px-6 md:px-10">
           <motion.div style={{ scale: videoScale }} className="absolute inset-0 z-0 will-change-transform">
             <video
               src={HERO_VIDEO}
@@ -705,7 +705,7 @@ export default function App() {
           {/* Indice de scroll initial — s'efface dès que la marche commence */}
           <motion.div
             style={{ opacity: scrollCueOpacity }}
-            className="absolute top-[85vh] md:top-auto md:bottom-24 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-3 pointer-events-none"
+            className="absolute top-[85%] md:top-auto md:bottom-24 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-3 pointer-events-none"
             aria-hidden="true"
           >
             <span className="text-[10px] uppercase tracking-[0.3em] font-medium text-[#F0E2D3]/50">Scrollez</span>
@@ -1204,7 +1204,7 @@ export default function App() {
               exit={{ opacity: 0, y: 40, scale: 0.97 }}
               transition={{ duration: 0.5, ease: EASE }}
               onClick={e => e.stopPropagation()}
-              className="paper text-[#1c120c] rounded-3xl max-w-2xl w-full max-h-[80vh] overflow-y-auto p-8 md:p-12 relative"
+              className="paper text-[#1c120c] rounded-3xl max-w-2xl w-full max-h-[80dvh] overflow-y-auto p-8 md:p-12 relative"
               data-lenis-prevent
             >
               <button
