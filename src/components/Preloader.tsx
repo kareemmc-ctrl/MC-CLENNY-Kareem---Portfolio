@@ -51,7 +51,7 @@ export default function Preloader() {
             transition={{ delay: 0.3 }}
             className="mt-6 text-[11px] uppercase tracking-[0.4em] text-[#F0E2D3]/40 font-medium"
           >
-            Portfolio — Design & IA
+            Portfolio · Design & IA
           </motion.span>
           <span className="absolute bottom-10 right-10 font-display text-5xl md:text-7xl font-light text-[#B86443] tabular-nums">
             {count}

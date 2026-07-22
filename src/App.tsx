@@ -414,7 +414,7 @@ export default function App() {
 
   const handleFormSubmit = (e: FormEvent) => {
     e.preventDefault();
-    const subject = encodeURIComponent(`Nouveau contact : ${formData.service} - de ${formData.name}`);
+    const subject = encodeURIComponent(`Nouveau contact : ${formData.service} de ${formData.name}`);
     const body = encodeURIComponent(`Nom: ${formData.name}\nEmail: ${formData.email}\nService: ${formData.service}\n\nMessage:\n${formData.message}`);
     window.location.href = `mailto:kareemmcclenny@gmail.com?subject=${subject}&body=${body}`;
   };
@@ -482,7 +482,7 @@ export default function App() {
     ],
     ia: [
       {
-        title: 'Jarvis — Assistant Personnel IA',
+        title: 'Jarvis : Assistant Personnel IA',
         desc: 'Assistant IA • Cockpit vocal 100% local',
         longDesc: 'Assistant personnel piloté par la voix : orbe de particules réactif à l\'amplitude vocale, reconnaissance et synthèse en français, palette de commandes et exécution d\'actions par intentions. IA locale (Ollama) pour la confidentialité, orchestration via agents dédiés.',
         tags: ['IA', 'Voice UI', 'Next.js', 'Ollama'],
@@ -492,7 +492,7 @@ export default function App() {
         link: '#'
       },
       {
-        title: 'Complice — App',
+        title: 'Complice : App',
         desc: 'Application • Le budget à plusieurs, sans tension',
         longDesc: 'Application de gestion budgétaire pensée pour le foyer : suivi des dépenses en temps réel, score de santé financière, objectifs d\'épargne partagés et badges de progression pour garder la motivation. Utilisable en solo, à deux ou en famille.',
         tags: ['App', 'Finance', 'PWA', 'Supabase'],
@@ -502,7 +502,7 @@ export default function App() {
         link: 'https://complice-nu.vercel.app'
       },
       {
-        title: 'Forge — Tracker Sport',
+        title: 'Forge : Tracker Sport',
         desc: 'Application Mobile • Suivi d\'entraînement & performance',
         longDesc: 'Forge est le module de tracking sportif de l\'écosystème Bushi. Suivi de séances en temps réel, progression des charges, RPE dial, coach vocal, smart progression par l\'IA et partage de performances. Interface dark inspirée des arts martiaux.',
         tags: ['App', 'Sport', 'React', 'IA Coach'],
@@ -511,7 +511,7 @@ export default function App() {
         link: '#'
       },
       {
-        title: 'Agence A — Dashboard IA',
+        title: 'Agence A : Dashboard IA',
         desc: 'Tableau de bord IA • Pilotage marketing temps réel',
         longDesc: 'Dashboard de pilotage complet pour une agence digitale. Vue d\'ensemble en temps réel des KPIs (leads, conversion, rétention), SEO score, Google My Business, veille concurrentielle et consultant IA intégré via Ollama. Interface dark avec accents néon.',
         tags: ['IA', 'Dashboard', 'React', 'Ollama'],
@@ -688,7 +688,7 @@ export default function App() {
 
           {/* Liens sociaux + progression de la marche */}
           <div className="absolute bottom-10 right-6 md:right-10 z-20 hidden md:flex gap-8">
-            {[['https://linkedin.com', 'LinkedIn'], ['https://behance.net', 'Behance'], ['https://github.com/kareemmc-ctrl', 'GitHub']].map(([href, label]) => (
+            {[['https://www.linkedin.com/in/kareem-mc-clenny-475488241', 'LinkedIn'], ['https://behance.net', 'Behance'], ['https://github.com/kareemmc-ctrl', 'GitHub']].map(([href, label]) => (
               <a key={label} href={href} target="_blank" rel="noopener noreferrer" data-cursor-text="Voir"
                 className="text-[11px] font-semibold tracking-[0.2em] uppercase text-[#F0E2D3]/60 hover:text-[#B86443] transition-colors duration-500">
                 {label}
@@ -765,7 +765,7 @@ export default function App() {
           transition={{ duration: 0.9, delay: 0.2, ease: EASE }}
           className="mt-12 text-sm md:text-base text-[#F0E2D3]/50 font-light tracking-wide"
         >
-          Kareem Mc Clenny — Expert Marketing Digital · Fondateur de <span className="text-[#B86443]">Framo Studio</span> · Nancy, France
+          Kareem Mc Clenny · Expert Marketing Digital · Fondateur de <span className="text-[#B86443]">Framo Studio</span> · Nancy, France
         </motion.p>
       </section>
 
@@ -956,7 +956,7 @@ export default function App() {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#1e3b2a] opacity-60" />
                   <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#1e5231]" />
                 </span>
-                <span className="text-[11px] font-bold uppercase tracking-[0.2em]">Disponible — freelance & alternance dès sept. 2026</span>
+                <span className="text-[11px] font-bold uppercase tracking-[0.2em]">Disponible : freelance & alternance dès sept. 2026</span>
               </motion.div>
 
               <h2 className="font-display font-light text-[clamp(3.2rem,9vw,8.5rem)] leading-[0.95] tracking-tight mb-12">
@@ -1030,7 +1030,7 @@ export default function App() {
                     <span className="w-10 h-10 rounded-full border border-[#F0E2D3]/20 flex items-center justify-center shrink-0">
                       <MapPin size={16} strokeWidth={1.5} />
                     </span>
-                    Nancy, France — {parisTime && `${parisTime} heure locale`}
+                    Nancy, France {parisTime && `· ${parisTime} heure locale`}
                   </span>
                 </div>
               </div>
@@ -1039,7 +1039,7 @@ export default function App() {
                 <span className="text-[10px] font-bold uppercase tracking-[0.25em] opacity-60 mb-5 block">Réseaux</span>
                 <div className="flex flex-wrap gap-3">
                   {[
-                    ['https://linkedin.com', 'LinkedIn'],
+                    ['https://www.linkedin.com/in/kareem-mc-clenny-475488241', 'LinkedIn'],
                     ['https://behance.net', 'Behance'],
                     ['https://github.com/kareemmc-ctrl', 'GitHub'],
                   ].map(([href, label]) => (
@@ -1161,7 +1161,7 @@ export default function App() {
           {/* Barre de bas de page */}
           <div className="max-w-7xl mx-auto mt-24 md:mt-28 pt-8 border-t border-[#F0E2D3]/15 flex flex-col md:flex-row items-center justify-between gap-6">
             <span className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-70 text-center md:text-left">
-              © 2026 MC CLENNY Kareem · Framo Studio — Conçu & développé avec soin à Nancy
+              © 2026 MC CLENNY Kareem · Framo Studio · Conçu & développé avec soin à Nancy
             </span>
             <div className="flex items-center gap-6">
               <button onClick={() => setLegalOpen('mentions')} data-cursor-text="Lire" className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] opacity-60 hover:opacity-100 transition-opacity duration-500">
@@ -1220,7 +1220,7 @@ export default function App() {
                   <h3 className="font-display text-3xl font-medium">Mentions <em className="italic text-[#B86443]">légales</em></h3>
                   <div className="space-y-4 text-sm leading-relaxed text-[#1c120c]/80">
                     <p><strong className="text-[#1c120c]">Éditeur du site</strong><br />
-                      Kareem Mc Clenny — Framo Studio<br />
+                      Kareem Mc Clenny · Framo Studio<br />
                       Nancy, France<br />
                       Contact : kareemmcclenny@gmail.com</p>
                     <p><strong className="text-[#1c120c]">Directeur de la publication</strong><br />

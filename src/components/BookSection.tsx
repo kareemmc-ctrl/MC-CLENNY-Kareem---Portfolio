@@ -87,7 +87,7 @@ export default function BookSection() {
                     ].map(([n, t, d]) => (
                       <li key={n} className="flex gap-3 items-baseline border-b border-[#1c120c]/10 pb-[3%]">
                         <span className="font-display italic text-[#B86443] font-semibold">{n}</span>
-                        <span><strong className="font-semibold text-[#1c120c]">{t}</strong> — <span className="text-[#1c120c]/85">{d}</span></span>
+                        <span><strong className="font-semibold text-[#1c120c]">{t}</strong> : <span className="text-[#1c120c]/85">{d}</span></span>
                       </li>
                     ))}
                   </ul>
@@ -108,7 +108,7 @@ export default function BookSection() {
                   <span className="text-[10px] sm:text-[11px] uppercase tracking-[0.3em] font-sans font-bold text-[#B86443]">Chapitre 01</span>
                   <blockquote className="font-display italic font-light text-[clamp(1.15rem,2.4vw,1.95rem)] leading-relaxed text-[#1c120c]">
                     « Un site ne doit pas seulement se voir.<br />
-                    Il doit se <span className="text-[#B86443] not-italic font-semibold">ressentir</span> — comme le papier
+                    Il doit se <span className="text-[#B86443] not-italic font-semibold">ressentir</span>, comme le papier
                     entre les doigts. »
                   </blockquote>
                   <span className="font-sans text-[10px] opacity-50 self-end">02</span>
@@ -123,7 +123,7 @@ export default function BookSection() {
                   <div className="space-y-[7%]">
                     {[
                       ['★', 'Expert Marketing Digital'],
-                      ['01', 'studio créatif fondé — Framo, Nancy'],
+                      ['01', 'studio créatif fondé : Framo, Nancy'],
                       ['∞', 'curiosité pour la suite'],
                     ].map(([n, label]) => (
                       <div key={label} className="flex items-baseline gap-4 border-b border-[#1c120c]/10 pb-[4%]">
@@ -161,7 +161,7 @@ export default function BookSection() {
                   <p className="font-sans text-[clamp(0.82rem,1.35vw,1.15rem)] leading-relaxed text-[#1c120c]/90 font-medium">
                     J’aide les marques à grandir en alliant un web design créatif,
                     un marketing orienté données et une intelligence artificielle
-                    de pointe. Chaque projet est une histoire — celle-ci commence
+                    de pointe. Chaque projet est une histoire, celle-ci commence
                     ici, page après page.
                   </p>
                   <span className="font-sans text-[10px] opacity-50">01</span>
