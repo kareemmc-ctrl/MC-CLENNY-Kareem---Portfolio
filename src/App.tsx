@@ -1,4 +1,4 @@
-import { motion, useScroll, useTransform, useSpring, AnimatePresence, MotionConfig } from 'motion/react';
+import { motion, useScroll, useTransform, useSpring, useMotionValueEvent, AnimatePresence, MotionConfig } from 'motion/react';
 import { useState, useRef, useEffect, type FormEvent } from 'react';
 import { ArrowUpRight, ArrowUp, ChevronDown, Plus, Minus, FileText, Shield, Copy, Check, MapPin } from 'lucide-react';
 import Lenis from 'lenis';
@@ -390,6 +390,12 @@ export default function App() {
   });
   const heroTextY = useTransform(heroProgress, [0, 0.3], [0, -140]);
   const heroTextOpacity = useTransform(heroProgress, [0.12, 0.28], [1, 0]);
+  // Filet de sécurité : au cas où l'opacity scroll-linkée resterait bloquée à 1,
+  // le titre est aussi complètement démonté avant l'arrivée du texte de mi-parcours.
+  const [showHeroText, setShowHeroText] = useState(true);
+  useMotionValueEvent(heroProgress, 'change', latest => {
+    setShowHeroText(latest < 0.32);
+  });
   const midTextOpacity = useTransform(heroProgress, [0.4, 0.52, 0.68, 0.8], [0, 1, 1, 0]);
   const midTextY = useTransform(heroProgress, [0.4, 0.8], [60, -60]);
   const videoScale = useTransform(smoothHeroProgress, [0, 1], [1, 1.12]);
@@ -637,43 +643,45 @@ export default function App() {
           />
 
           {/* Texte principal — s'efface quand la marche commence */}
-          <motion.div
-            style={{ y: heroTextY, opacity: heroTextOpacity }}
-            className="relative z-20 flex w-full flex-col items-center justify-center text-center"
-          >
-            <h1 className="font-display font-light text-[clamp(3rem,9vw,7.5rem)] leading-[0.95] tracking-tight mb-6">
-              <LineReveal delay={1.9}>Design <em className="italic text-[#B86443]">Digital</em></LineReveal>
-              <LineReveal delay={2.05}>& Intelligence</LineReveal>
-            </h1>
-            <span className="block overflow-hidden mb-10">
-              <motion.p
-                initial={{ y: '110%' }}
-                animate={{ y: '0%' }}
-                transition={{ duration: 1, delay: 2.25, ease: EASE }}
-                className="text-[clamp(1rem,1.6vw,1.35rem)] text-[#F0E2D3]/70 font-light max-w-3xl"
-              >
-                Création d'expériences web immersives et d'automatisations intelligentes.
-              </motion.p>
-            </span>
+          {showHeroText && (
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.9, delay: 2.5, ease: EASE }}
+              style={{ y: heroTextY, opacity: heroTextOpacity }}
+              className="relative z-20 flex w-full flex-col items-center justify-center text-center"
             >
-              <MagneticButton
-                as="a"
-                href="#work"
-                onClick={(e: React.MouseEvent) => { e.preventDefault(); scrollTo('#work'); }}
-                data-cursor-text="Aller"
-                className="group inline-flex items-center gap-4 pl-8 pr-2.5 py-2.5 bg-[#F0E2D3] text-[#121212] rounded-full font-semibold text-base tracking-wide transition-colors duration-500 hover:bg-[#B86443] hover:text-[#F0E2D3]"
+              <h1 className="font-display font-light text-[clamp(3rem,9vw,7.5rem)] leading-[0.95] tracking-tight mb-6">
+                <LineReveal delay={1.9}>Design <em className="italic text-[#B86443]">Digital</em></LineReveal>
+                <LineReveal delay={2.05}>& Intelligence</LineReveal>
+              </h1>
+              <span className="block overflow-hidden mb-10">
+                <motion.p
+                  initial={{ y: '110%' }}
+                  animate={{ y: '0%' }}
+                  transition={{ duration: 1, delay: 2.25, ease: EASE }}
+                  className="text-[clamp(1rem,1.6vw,1.35rem)] text-[#F0E2D3]/70 font-light max-w-3xl"
+                >
+                  Création d'expériences web immersives et d'automatisations intelligentes.
+                </motion.p>
+              </span>
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.9, delay: 2.5, ease: EASE }}
               >
-                Voir les Projets
-                <span className="w-10 h-10 rounded-full bg-[#121212]/10 flex items-center justify-center transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:scale-105">
-                  <ArrowUpRight size={18} strokeWidth={1.5} />
-                </span>
-              </MagneticButton>
+                <MagneticButton
+                  as="a"
+                  href="#work"
+                  onClick={(e: React.MouseEvent) => { e.preventDefault(); scrollTo('#work'); }}
+                  data-cursor-text="Aller"
+                  className="group inline-flex items-center gap-4 pl-8 pr-2.5 py-2.5 bg-[#F0E2D3] text-[#121212] rounded-full font-semibold text-base tracking-wide transition-colors duration-500 hover:bg-[#B86443] hover:text-[#F0E2D3]"
+                >
+                  Voir les Projets
+                  <span className="w-10 h-10 rounded-full bg-[#121212]/10 flex items-center justify-center transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:scale-105">
+                    <ArrowUpRight size={18} strokeWidth={1.5} />
+                  </span>
+                </MagneticButton>
+              </motion.div>
             </motion.div>
-          </motion.div>
+          )}
 
           {/* Texte de mi-parcours */}
           <motion.div

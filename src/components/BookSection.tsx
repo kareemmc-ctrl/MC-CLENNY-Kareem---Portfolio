@@ -67,7 +67,7 @@ export default function BookSection() {
           >
             {/* Le livre : la moitié droite porte les pages, la gauche les reçoit */}
             <div
-              className="relative w-full aspect-[4/3] sm:aspect-[16/10]"
+              className="relative w-full aspect-[2/3] sm:aspect-[16/10]"
               style={{ transformStyle: 'preserve-3d' }}
             >
               {/* Plat verso (fond gauche, visible avant ouverture : vide) */}
